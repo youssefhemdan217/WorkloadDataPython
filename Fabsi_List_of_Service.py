@@ -22,6 +22,108 @@ class ExcelActivityApp:
         self.file_path = ""
         self.tree = None
         self.entries = {}
+        self.foreign_key_fields = [
+            ("Stick-Built", "stickbuilts"),
+            ("Module", "modules"),
+            ("Activities", "activitiess"),
+            ("Title", "titles"),
+            ("Technical Unit", "technicalunits"),
+            ("Assigned to", "employees"),
+            ("Progress", "progresss"),
+            ("Professional Role", "professionalunits"),
+            ("Project", "projects")
+        ]
+        self.foreign_key_options = {}
+        self.load_foreign_key_options_from_db()
+    def load_foreign_key_options_from_db(self):
+        # Print all available table names for debugging
+        import sqlalchemy
+        import re
+        db_path = os.path.join(os.path.dirname(__file__), 'workload.db')
+        engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
+        insp = sqlalchemy.inspect(engine)
+        available_tables = insp.get_table_names()
+        print("Available tables in database:", available_tables)
+        # Try to map expected table names to actual table names
+        def normalize(name):
+            return re.sub(r'[^a-z0-9]', '', name.lower())
+        # List of possible table name variants for each field
+        table_name_variants = {
+            "stickbuilts": ["stickbuilt", "stickbuilts"],
+            "modules": ["module", "modules"],
+            "activitiess": ["activities", "activity", "activitiess"],
+            "titles": ["title", "titles"],
+            "technicalunits": ["technicalunit", "technicalunits"],
+            "employees": ["employee", "employees"],
+            "progresss": ["progress", "progresss"],
+            "professionalunits": ["professionalunit", "professionalunits"],
+            "projects": ["project", "projects"]
+        }
+        # Build a mapping from endpoint to actual table name in DB
+        endpoint_to_table = {}
+        for endpoint, variants in table_name_variants.items():
+            found = None
+            for t in available_tables:
+                t_norm = normalize(t)
+                for v in variants:
+                    if t_norm == normalize(v):
+                        found = t
+                        break
+                if found:
+                    break
+            if found:
+                endpoint_to_table[endpoint] = found
+            else:
+                endpoint_to_table[endpoint] = None
+        print("Endpoint to DB table mapping:", endpoint_to_table)
+        # Fetch dropdown options directly from SQLite using SQLAlchemy models
+        from sqlalchemy.orm import sessionmaker
+        from sqlalchemy.ext.automap import automap_base
+        import traceback
+        if not os.path.exists(db_path):
+            from tkinter import messagebox
+            messagebox.showerror("DB Error", f"Database file not found: {db_path}")
+            print(f"Database file not found: {db_path}")
+            return
+        engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
+        Base = automap_base()
+        try:
+            Base.prepare(autoload_with=engine)
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("DB Error", f"Could not reflect database tables.\n{e}")
+            print("Could not reflect database tables:", e)
+            traceback.print_exc()
+            return
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        for field, endpoint in self.foreign_key_fields:
+            try:
+                table_name = endpoint_to_table.get(endpoint)
+                if not table_name:
+                    self.foreign_key_options[field] = []
+                    print(f"No table mapping for endpoint: {endpoint}")
+                    continue
+                if not hasattr(Base.classes, table_name):
+                    self.foreign_key_options[field] = []
+                    print(f"Table '{table_name}' not found in database.")
+                    from tkinter import messagebox
+                    messagebox.showwarning("DB Table Missing", f"Table '{table_name}' not found in database.")
+                    continue
+                Model = getattr(Base.classes, table_name)
+                options = session.query(Model).all()
+                if not options:
+                    print(f"No data found in table '{table_name}'.")
+                    from tkinter import messagebox
+                    messagebox.showwarning("DB Table Empty", f"No data found in table '{table_name}'.")
+                self.foreign_key_options[field] = [
+                    {"id": getattr(opt, "id", None), "name": getattr(opt, "name", str(opt))} for opt in options
+                ]
+            except Exception as e:
+                self.foreign_key_options[field] = []
+                print(f"Error loading options for {field} ({endpoint}): {e}")
+                traceback.print_exc()
+        session.close()
         self.project_combobox = None
         self.current_project = ""
         self.tree_edit_widgets = {}
@@ -201,66 +303,42 @@ class ExcelActivityApp:
         for widget in self.entry_frame.winfo_children():
             widget.destroy()
         self.entries.clear()
-        project_list = []
-        try:
-            template_df = pd.read_excel(self.file_path, sheet_name='TemplateList')
-            if 'Project' in template_df.columns:
-                project_list = template_df['Project'].dropna().astype(str).unique().tolist()
-            if 'Master' not in project_list:
-                project_list.insert(0, 'Master')
-            template_lists = {
-                col: template_df[col].dropna().astype(str).unique().tolist()
-                for col in template_df.columns
-            }
-        except Exception:
-            template_lists = {}
-            project_list = ['Master']
         field_layout = {
-            "Project Template":             (30, 20, 20, 20),
-            "Stick-Built":                  (210, 20, 15, 20),
-            "Module":                       (390, 20, 15, 20),
-            "Document Number":              (570, 20, 15, 25),
-            "Title":                        (760, 20, 15, 23),
-            "Department":                   (950, 20, 15, 25),
-            "Technical Unit":               (30, 70, 15, 20),
-            "Assigned to":                  (210, 70, 15, 20),
-            "Progress":                     (390, 70, 15, 20),
+            "Stick-Built":                  (30, 20, 15, 20),
+            "Module":                       (210, 20, 15, 20),
+            "Activities":                   (390, 20, 30, 20),
+            "Title":                        (570, 20, 15, 23),
+            "Technical Unit":               (760, 20, 15, 20),
+            "Assigned to":                  (950, 20, 15, 20),
+            "Progress":                     (1150, 20, 15, 20),
+            "Professional Role":            (30, 70, 15, 20),
+            "Project":                      (210, 70, 15, 20),
+            "Department":                   (390, 70, 15, 25),
             "Estimated hours (internal)":   (570, 70, 20, 25),
             "Estimated hours (external)":   (760, 70, 20, 25),
             "Start date":                   (950, 70, 15, 25),
             "Due date":                     (1150, 70, 15, 25),
-            "Activities":                   (30, 120, 30, 80),
-            "Notes":                        (570, 120, 30, 88)
+            "Notes":                        (30, 120, 30, 88)
         }
         for col, (x, y, label_width, entry_width) in field_layout.items():
             lbl = tk.Label(self.entry_frame, text=col, width=label_width, anchor='w')
             lbl.place(x=x, y=y)
-            if col == "Project Template":
-                self.project_combobox = ttk.Combobox(
-                    self.entry_frame,
-                    width=entry_width,
-                    state="readonly",
-                    values=project_list
-                )
-                self.project_combobox.place(x=x, y=y + 22)
-                self.project_combobox.bind("<<ComboboxSelected>>", self.on_project_selected)
-                self.entries[col] = self.project_combobox
-            elif col == "Activities":
-                all_activities = self.df["Activities"].dropna().unique().tolist() if "Activities" in self.df.columns else []
-                widget = ttk.Combobox(self.entry_frame, width=entry_width, values=all_activities)
-                widget.bind("<KeyRelease>", self.update_activities_filter)
+            if col in self.foreign_key_options:
+                options = self.foreign_key_options[col]
+                widget = ttk.Combobox(self.entry_frame, width=entry_width, state="readonly")
+                widget['values'] = [o['name'] for o in options]
+                self.entries[col] = widget
+                widget.place(x=x, y=y + 22)
+            elif col in ["Department", "Estimated hours (internal)", "Estimated hours (external)", "Start date", "Due date", "Notes"]:
+                widget = tk.Entry(self.entry_frame, width=entry_width)
+                if col == "Department":
+                    widget.insert(0, "FABSI")
                 self.entries[col] = widget
                 widget.place(x=x, y=y + 22)
             else:
-                if col in template_lists:
-                    widget = ttk.Combobox(self.entry_frame, values=template_lists[col], width=entry_width)
-                    widget.set("")
-                else:
-                    widget = tk.Entry(self.entry_frame, width=entry_width)
-                    if col == "Department":
-                        widget.insert(0, "FABSI")
-                widget.place(x=x, y=y + 22)
+                widget = tk.Entry(self.entry_frame, width=entry_width)
                 self.entries[col] = widget
+                widget.place(x=x, y=y + 22)
 
     def update_activities_filter(self, event):
         text = self.entries["Activities"].get()
@@ -429,15 +507,46 @@ class ExcelActivityApp:
         entry.bind("<FocusOut>", on_focus_out)
 
     def add_row(self):
-        required_fields = ["Stick-Built", "Module", "Document Number", "Department", "Activities"]
+        import requests
+        required_fields = ["Stick-Built", "Module", "Department", "Activities"]
         missing_fields = [col for col in required_fields if not self.entries[col].get().strip()]
         if missing_fields:
             messagebox.showerror("Error", f"Por favor llena los campos requeridos:\n{', '.join(missing_fields)}")
             return
-        new_data = {col: self.entries[col].get() for col in self.entries}
-        self.df = pd.concat([self.df, pd.DataFrame([new_data])], ignore_index=True)
-        self.original_df = self.df.copy()
-        self.render_table()
+        # Prepare data for API
+        data = {}
+        for col in self.entries:
+            val = self.entries[col].get()
+            # If foreign key, get id
+            if col in self.foreign_key_options:
+                options = self.foreign_key_options[col]
+                match = next((o for o in options if o['name'] == val), None)
+                data_field = col.lower().replace(' ', '_').replace('-', '_') + '_id'
+                data[data_field] = match['id'] if match else None
+            else:
+                data[col.lower().replace(' ', '_').replace('-', '_')] = val
+        try:
+            resp = requests.post("http://localhost:5000/services", json=data)
+            if resp.status_code == 200:
+                messagebox.showinfo("Success", "Service added successfully.")
+                self.load_services()
+            else:
+                messagebox.showerror("Error", f"Failed to add service: {resp.text}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to connect to API: {e}")
+
+    def load_services(self):
+        import requests
+        try:
+            resp = requests.get("http://localhost:5000/services")
+            if resp.status_code == 200:
+                data = resp.json()
+                # Convert to DataFrame for display
+                self.df = pd.DataFrame(data)
+                self.original_df = self.df.copy()
+                self.render_table()
+        except Exception:
+            pass
 
     def delete_selected(self):
         selected_items = self.tree.selection()

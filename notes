@@ -27,8 +27,14 @@ Task two : creating API :
 9- we must seed data in service , from excel sheet here we have a sheet called : List Of Service which is for a general project , Anadarko sheet for Anadarko project and so on.
 ------------------------------------------------------------------
 
-Task three : set UI :
+Task three : set UI integration :
 ----------------------------
+1- change the form to be setted with the data in database , so if the coulmn is sperated table or foriegn key as module, employee , ... make it dropdown show name and sent id as key
+2- so i want to set each field in form to be of type suitable with service table , forign id mean dropdown and so on.
+3- check the action of initialize the form and filling it with data from database , so it will be shown in the form.
+4- make sure that save or submit action will save data on service table and will be shown in the table bellow form.
+5- make sure to seed data in service table from excel sheet as following :
+we must seed data in service , from excel sheet here we have a sheet called : List Of Service which is for a general project , Anadarko sheet for Anadarko project and so on.
 
 
 
