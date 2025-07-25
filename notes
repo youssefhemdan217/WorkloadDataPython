@@ -1,0 +1,32 @@
+To Do Tasks:
+=============
+Task one : creating database:
+------------------------------
+1- create a database by sqllite and use suitale and simple orm 
+2- our database will contain the folloing tables :
+- Stick built , Module , Activities , Title , Technical unit , Employee , progress , profissional unit ,  project 
+- each table of the previous ones are contains id + name only
+- each table contain starting data for each table and you can find them in the excel file found here in the sheet called : TemplateList
+- so please create database , craete table and seed data.
+- another table called : Service and will contain id + id of all previous tables + department : string , estimated internal hours and estimated external hours : int , start data and due date : date , notes
+- to see coulmns and data exactly of srvice tabele : review excel sheet called : List Of Service.
+3- use sqlite3 and flask-sqlalchemy to create the database and tables and seed the data
+4- use the excel file to seed the data in the database
+----------------------------------------------------------------
+
+Task two : creating API :
+---------------------------
+1- create a simple API using flask to interact with the database
+2- the API should have the crud operations for all entities
+3- handle the form to get dropdowns data from database created above.
+4- the post of the form will post new service and it will be listed in the table.
+5- as shown we have import data from excel ability , also make sure to handle it so the imported data will be saved in service table.
+6- use flask-restful to create the APIs.
+7- make sure that the grid here is shown all service and we have a filter by project.
+8- we have above a dropdown for all projects i want to not show data at first except user select one project.
+9- we must seed data in service , from excel sheet here we have a sheet called : List Of Service which is for a general project , Anadarko sheet for Anadarko project and so on.
+------------------------------------------------------------------
+Task three : Set the theme:
+---------------------------
+1- clean and organize code little bit 
+2- 
