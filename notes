@@ -26,7 +26,13 @@ Task two : creating API :
 8- we have above a dropdown for all projects i want to not show data at first except user select one project.
 9- we must seed data in service , from excel sheet here we have a sheet called : List Of Service which is for a general project , Anadarko sheet for Anadarko project and so on.
 ------------------------------------------------------------------
-Task three : Set the theme:
+
+Task three : set UI :
+----------------------------
+
+
+
+Task four : Set the theme:
 ---------------------------
 1- clean and organize code little bit 
 2- 
