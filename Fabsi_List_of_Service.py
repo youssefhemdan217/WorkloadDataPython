@@ -1,3 +1,10 @@
+import os
+import logging
+logging.basicConfig(
+    filename=os.path.join(os.path.dirname(__file__), 'app.log'),
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)s %(message)s'
+)
 from tkinter import filedialog, messagebox, ttk
 import tkinter as tk
 import pandas as pd
@@ -30,16 +37,16 @@ class ExcelActivityApp:
             ("Technical Unit", "technicalunits"),
             ("Assigned to", "employees"),
             ("Progress", "progresss"),
-            ("Professional Role", "professionalunits"),
-            ("Project", "projects")
+            ("Professional Role", "professionalunits")
         ]
         self.foreign_key_options = {}
         self.load_foreign_key_options_from_db()
+        self.setup_ui()
     def load_foreign_key_options_from_db(self):
         # Print all available table names for debugging
         import sqlalchemy
         import re
-        db_path = os.path.join(os.path.dirname(__file__), 'workload.db')
+        db_path = os.path.join(os.path.dirname(__file__), 'Workload.db')
         engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
         insp = sqlalchemy.inspect(engine)
         available_tables = insp.get_table_names()
@@ -125,7 +132,7 @@ class ExcelActivityApp:
                 traceback.print_exc()
         session.close()
         self.project_combobox = None
-        self.current_project = ""
+        self.current_project = None
         self.tree_edit_widgets = {}
         self.header_labels = []
         self.filter_vars = {}
@@ -139,42 +146,46 @@ class ExcelActivityApp:
         self.role_summary_data = pd.DataFrame()
         self.edit_popup = None
 
-        self.setup_ui()
-        self.auto_update_totals()
-
     def setup_ui(self):
         main_top = tk.Frame(self.root)
         main_top.pack(fill='x', padx=10, pady=2)
 
-        self.entry_frame = tk.Frame(main_top, height=180)
+        # Project selection dropdown
+        project_label = tk.Label(main_top, text="Select Project:", font=("Arial", 10, "bold"))
+        project_label.pack(side='left', padx=(0, 5))
+        # Always reload project list from DB to avoid stale cache
+        import sqlalchemy
+        db_path = os.path.join(os.path.dirname(__file__), 'Workload.db')
+        engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
+        with engine.connect() as conn:
+            result = conn.execute(sqlalchemy.text('SELECT name FROM project')).fetchall()
+            project_names = [row[0] for row in result]
+        self.project_combobox = ttk.Combobox(main_top, values=project_names, state="readonly", width=30)
+        self.project_combobox.pack(side='left', padx=(0, 20))
+        self.project_combobox.bind("<<ComboboxSelected>>", self.on_project_selected)
+
+        # Professional, compact form frame with max width
+        self.entry_frame = tk.Frame(main_top, height=260, width=1300, bd=2, relief='groove', bg='#F7F7F7')
         self.entry_frame.pack_propagate(False)
-        self.entry_frame.pack(side='left', fill='x', expand=True)
+        self.entry_frame.pack(side='left', padx=10, pady=5, anchor='nw')
 
-        # Tabla resumen (derecha)
-        summary_right = tk.Frame(main_top)
-        summary_right.pack(side='right', padx=(0,10), pady=(10,0), anchor='ne')
-        self.role_summary_frame = tk.Frame(summary_right, bd=1, relief='solid')
-        self.role_summary_frame.pack(padx=5, pady=5, anchor='ne')
-        self.role_summary_tree = ttk.Treeview(
-            self.role_summary_frame,
-            columns=["Professional Role", "Manhours"],
-            show='headings', height=6
-        )
-        self.role_summary_tree.heading("Professional Role", text="Professional Role")
-        self.role_summary_tree.heading("Manhours", text="Manhours")
-        self.role_summary_tree.column("Professional Role", width=200, anchor='w')
-        self.role_summary_tree.column("Manhours", width=90, anchor='e')
-        self.role_summary_tree.pack()
-        self.role_summary_tree.bind("<Double-1>", self.edit_role_summary_cell)
-        style = ttk.Style()
-        style.configure("Treeview.Heading", font=('Arial', 9, 'bold'))
-        style.configure("Treeview", font=('Arial', 9), rowheight=22)
-
+        # Add button to open modal for professional role summary
         button_frame = tk.Frame(self.root)
-        button_frame.pack(fill='x', padx=15)
-        tk.Button(button_frame, text="Agregar Actividad", command=self.add_row).pack(side='right')
-        tk.Button(button_frame, text="Open File", command=self.open_file).pack(side='right', padx=(0, 10))
+        button_frame.pack(fill='x', padx=15, pady=(0, 5))
+        tk.Button(button_frame, text="Professional Role Summary", command=self.open_role_summary_modal, bg="#1976D2", fg="white").pack(side='left', padx=(0, 10))
+        tk.Button(button_frame, text="Agregar Actividad", command=self.add_row, bg="#388E3C", fg="white").pack(side='right')
+        tk.Button(button_frame, text="Open File", command=self.open_file, bg="#0288D1", fg="white").pack(side='right', padx=(0, 10))
 
+        # Remove the always-visible small table from the main UI
+        # self.role_summary_frame = tk.Frame(summary_right, bd=1, relief='solid')
+        # self.role_summary_frame.pack(padx=5, pady=5, anchor='ne')
+        # self.role_summary_tree = ...
+
+        # Add a visual separator between form and table
+        separator = tk.Frame(self.root, height=2, bd=1, relief='sunken', bg="#BDBDBD")
+        separator.pack(fill='x', padx=10, pady=5)
+
+        # Create the main table frame (always present)
         self.table_frame = tk.Frame(self.root)
         self.table_frame.pack(fill='both', expand=True, padx=15, pady=(5, 10))
 
@@ -198,6 +209,36 @@ class ExcelActivityApp:
         self.build_entry_fields()
         self.update_sum_labels()
         self.update_role_summary()
+    def open_role_summary_modal(self):
+        if hasattr(self, 'role_summary_modal') and self.role_summary_modal and tk.Toplevel.winfo_exists(self.role_summary_modal):
+            self.role_summary_modal.lift()
+            return
+        self.role_summary_modal = tk.Toplevel(self.root)
+        self.role_summary_modal.title("Professional Role & Manhours Summary")
+        self.role_summary_modal.geometry("350x300")
+        self.role_summary_modal.transient(self.root)
+        self.role_summary_modal.grab_set()
+        frame = tk.Frame(self.role_summary_modal, bd=1, relief='solid')
+        frame.pack(fill='both', expand=True, padx=10, pady=10)
+        tree = ttk.Treeview(
+            frame,
+            columns=["Professional Role", "Manhours"],
+            show='headings', height=10
+        )
+        tree.heading("Professional Role", text="Professional Role")
+        tree.heading("Manhours", text="Manhours")
+        tree.column("Professional Role", width=180, anchor='w')
+        tree.column("Manhours", width=90, anchor='e')
+        tree.pack(fill='both', expand=True)
+        # Fill the tree with summary data
+        if hasattr(self, 'role_summary_data') and not self.role_summary_data.empty:
+            for _, row in self.role_summary_data.iterrows():
+                manhours = f"{row['Estimated hours (internal)']:,.0f}" if pd.notnull(row["Estimated hours (internal)"]) else ""
+                tree.insert("", "end", values=(row["Professional Role"], manhours))
+        close_btn = tk.Button(self.role_summary_modal, text="Close", command=self.role_summary_modal.destroy)
+        close_btn.pack(pady=5)
+
+        # (moved to setup_ui)
 
     def auto_update_totals(self):
         self.update_sum_labels()
@@ -205,6 +246,8 @@ class ExcelActivityApp:
         self.root.after(400, self.auto_update_totals)
 
     def update_sum_labels(self):
+        if not self.total_label_internal or not self.total_label_external:
+            return
         try:
             df = self.df
             col_internal = "Estimated hours (internal)"
@@ -219,6 +262,19 @@ class ExcelActivityApp:
         self.total_label_external.config(text=f"{total_external:,.2f}")
 
     def update_role_summary(self):
+        # Only update if the modal/tree exists
+        if not hasattr(self, 'role_summary_tree') or self.role_summary_tree is None:
+            # Still update the summary data for the modal
+            if "Professional Role" in self.df.columns and "Estimated hours (internal)" in self.df.columns:
+                summary = (
+                    self.df.groupby("Professional Role")["Estimated hours (internal)"]
+                    .apply(lambda x: pd.to_numeric(x, errors='coerce').sum())
+                    .reset_index()
+                )
+                summary = summary[summary["Professional Role"].notnull() & (summary["Professional Role"] != "")]
+                summary = summary[summary["Estimated hours (internal)"] > 0]
+                self.role_summary_data = summary
+            return
         for row in self.role_summary_tree.get_children():
             self.role_summary_tree.delete(row)
         if "Professional Role" in self.df.columns and "Estimated hours (internal)" in self.df.columns:
@@ -265,7 +321,73 @@ class ExcelActivityApp:
         path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx")])
         if path:
             self.file_path = path
-            self.load_project_data("List of Service")
+            if not self.current_project:
+                messagebox.showinfo("Select Project", "Please select a project first.")
+                return
+            import sqlalchemy
+            import pandas as pd
+            db_path = os.path.join(os.path.dirname(__file__), 'Workload.db')
+            engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
+            # Get project_id
+            with engine.connect() as conn:
+                result = conn.execute(sqlalchemy.text('SELECT id FROM project WHERE name = :name'), {'name': self.current_project}).fetchone()
+                project_id = result[0] if result else None
+            if not project_id:
+                messagebox.showerror("Error", "Project not found in database.")
+                return
+            try:
+                # Try to load the sheet with the same name as the project, else fallback to first sheet
+                try:
+                    df = pd.read_excel(path, sheet_name=self.current_project)
+                except Exception:
+                    df = pd.read_excel(path)
+                # Map Excel columns to DB columns
+                field_to_db = {
+                    "Stick-Built": "stick_built_id",
+                    "Module": "module_id",
+                    "Activities": "activities_id",
+                    "Title": "title_id",
+                    "Technical Unit": "technical_unit_id",
+                    "Assigned to": "employee_id",
+                    "Progress": "progress_id",
+                    "Professional Role": "professional_unit_id",
+                    "Department": "department",
+                    "Estimated hours (internal)": "estimated_internal_hours",
+                    "Estimated hours (external)": "estimated_external_hours",
+                    "Start date": "start_date",
+                    "Due date": "due_date",
+                    "Notes": "notes"
+                }
+                # Build foreign key name->id maps for all dropdowns
+                fk_maps = {}
+                for col, options in self.foreign_key_options.items():
+                    fk_maps[col] = {o['name']: o['id'] for o in options if o['id'] is not None}
+                # Prepare rows for insert
+                rows = []
+                for _, row in df.iterrows():
+                    data = {'project_id': project_id}
+                    for col, db_col in field_to_db.items():
+                        if db_col.endswith('_id'):
+                            val = row.get(col, None)
+                            data[db_col] = fk_maps.get(col, {}).get(val, None) if pd.notnull(val) else None
+                        else:
+                            data[db_col] = row.get(col, None)
+                    rows.append(data)
+                # Insert all rows in a transaction
+                with engine.begin() as conn:
+                    for data in rows:
+                        columns = ', '.join(data.keys())
+                        placeholders = ', '.join([f':{k}' for k in data.keys()])
+                        insert_sql = f"INSERT INTO service ({columns}) VALUES ({placeholders})"
+                        conn.execute(sqlalchemy.text(insert_sql), data)
+                logging.info(f"Imported {len(rows)} rows from Excel to service table for project {self.current_project}")
+                messagebox.showinfo("Import", f"Imported {len(rows)} rows successfully.")
+                self.on_project_selected(None)
+            except Exception as e:
+                import traceback
+                logging.error(f"Failed to import from Excel: {e}")
+                logging.error(traceback.format_exc())
+                messagebox.showerror("Import Error", f"Failed to import: {e}")
 
     def load_project_data(self, sheet_name):
         if not self.file_path:
@@ -284,61 +406,107 @@ class ExcelActivityApp:
 
     def on_project_selected(self, event):
         project_name = self.project_combobox.get()
-        if project_name:
-            try:
-                excel = pd.ExcelFile(self.file_path)
-                if project_name == 'Master':
-                    if 'List of Service' in excel.sheet_names:
-                        self.load_project_data('List of Service')
-                    else:
-                        messagebox.showerror("Error", "No existe hoja 'List of Service' en el archivo de Excel.")
-                elif project_name in excel.sheet_names:
-                    self.load_project_data(project_name)
+        self.current_project = project_name
+        # Fetch project ID directly from DB
+        import sqlalchemy
+        db_path = os.path.join(os.path.dirname(__file__), 'Workload.db')
+        engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
+        with engine.connect() as conn:
+            result = conn.execute(sqlalchemy.text('SELECT id FROM project WHERE name = :name'), {'name': project_name}).fetchone()
+            project_id = result[0] if result else None
+        # Load services for this project directly from DB
+        import pandas as pd
+        try:
+            if project_id:
+                # Join foreign key tables to get display names
+                query = '''
+                SELECT
+                    s.id,
+                    sb.name AS "Stick-Built",
+                    m.name AS "Module",
+                    s.id AS "Document Number",
+                    a.name AS "Activities",
+                    t.name AS "Title",
+                    s.department AS "Department",
+                    tu.name AS "Technical Unit",
+                    e.name AS "Assigned to",
+                    p.name AS "Progress",
+                    s.estimated_internal_hours AS "Estimated hours (internal)",
+                    s.estimated_external_hours AS "Estimated hours (external)",
+                    s.start_date AS "Start date",
+                    s.due_date AS "Due date",
+                    s.notes AS "Notes",
+                    pu.name AS "Professional Role"
+                FROM service s
+                LEFT JOIN stick_built sb ON s.stick_built_id = sb.id
+                LEFT JOIN module m ON s.module_id = m.id
+                LEFT JOIN activities a ON s.activities_id = a.id
+                LEFT JOIN title t ON s.title_id = t.id
+                LEFT JOIN technical_unit tu ON s.technical_unit_id = tu.id
+                LEFT JOIN employee e ON s.employee_id = e.id
+                LEFT JOIN progress p ON s.progress_id = p.id
+                LEFT JOIN professional_unit pu ON s.professional_unit_id = pu.id
+                WHERE s.project_id = :project_id
+                '''
+                with engine.connect() as conn:
+                    result = conn.execute(sqlalchemy.text(query), {'project_id': project_id})
+                    rows = result.fetchall()
+                    columns = result.keys()
+                df = pd.DataFrame(rows, columns=columns)
+                # Only keep display columns
+                if not df.empty:
+                    self.df = df[self.display_columns]
                 else:
-                    messagebox.showerror("Error", f"No existe hoja '{project_name}' en el archivo de Excel.")
-            except Exception as e:
-                messagebox.showerror("Error", f"No se pudo cargar la hoja '{project_name}':\n{e}")
+                    self.df = pd.DataFrame(columns=self.display_columns)
+                self.original_df = self.df.copy()
+                self.render_table()
+            else:
+                self.df = pd.DataFrame(columns=self.display_columns)
+                self.original_df = self.df.copy()
+                self.render_table()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load services for project: {e}")
 
     def build_entry_fields(self):
         for widget in self.entry_frame.winfo_children():
             widget.destroy()
         self.entries.clear()
-        field_layout = {
-            "Stick-Built":                  (30, 20, 15, 20),
-            "Module":                       (210, 20, 15, 20),
-            "Activities":                   (390, 20, 30, 20),
-            "Title":                        (570, 20, 15, 23),
-            "Technical Unit":               (760, 20, 15, 20),
-            "Assigned to":                  (950, 20, 15, 20),
-            "Progress":                     (1150, 20, 15, 20),
-            "Professional Role":            (30, 70, 15, 20),
-            "Project":                      (210, 70, 15, 20),
-            "Department":                   (390, 70, 15, 25),
-            "Estimated hours (internal)":   (570, 70, 20, 25),
-            "Estimated hours (external)":   (760, 70, 20, 25),
-            "Start date":                   (950, 70, 15, 25),
-            "Due date":                     (1150, 70, 15, 25),
-            "Notes":                        (30, 120, 30, 88)
-        }
-        for col, (x, y, label_width, entry_width) in field_layout.items():
-            lbl = tk.Label(self.entry_frame, text=col, width=label_width, anchor='w')
-            lbl.place(x=x, y=y)
-            if col in self.foreign_key_options:
-                options = self.foreign_key_options[col]
-                widget = ttk.Combobox(self.entry_frame, width=entry_width, state="readonly")
-                widget['values'] = [o['name'] for o in options]
-                self.entries[col] = widget
-                widget.place(x=x, y=y + 22)
-            elif col in ["Department", "Estimated hours (internal)", "Estimated hours (external)", "Start date", "Due date", "Notes"]:
-                widget = tk.Entry(self.entry_frame, width=entry_width)
-                if col == "Department":
-                    widget.insert(0, "FABSI")
-                self.entries[col] = widget
-                widget.place(x=x, y=y + 22)
-            else:
-                widget = tk.Entry(self.entry_frame, width=entry_width)
-                self.entries[col] = widget
-                widget.place(x=x, y=y + 22)
+        # Define the order and grouping of fields for a compact grid
+        fields = [
+            ["Stick-Built", "Module", "Activities", "Title"],
+            ["Technical Unit", "Assigned to", "Progress", "Professional Role"],
+            ["Department", "Estimated hours (internal)", "Estimated hours (external)", "Start date"],
+            ["Due date", "Notes"]
+        ]
+        label_opts = {'anchor': 'w', 'bg': '#F7F7F7', 'font': ('Arial', 9)}
+        entry_opts = {'font': ('Arial', 10)}
+        for row_idx, row in enumerate(fields):
+            for col_idx, col in enumerate(row):
+                lbl = tk.Label(self.entry_frame, text=col, **label_opts)
+                lbl.grid(row=row_idx*2, column=col_idx, sticky='w', padx=10, pady=(10,0))
+                if col in self.foreign_key_options:
+                    options = self.foreign_key_options[col]
+                    widget = ttk.Combobox(self.entry_frame, width=24, state="readonly", font=('Arial', 11))
+                    widget['values'] = [o['name'] for o in options]
+                    self.entries[col] = widget
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                elif col in ["Department", "Estimated hours (internal)", "Estimated hours (external)", "Start date", "Due date"]:
+                    widget = tk.Entry(self.entry_frame, width=26, **entry_opts)
+                    if col == "Department":
+                        widget.insert(0, "FABSI")
+                    self.entries[col] = widget
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                elif col == "Notes":
+                    widget = tk.Entry(self.entry_frame, width=50, **entry_opts)
+                    self.entries[col] = widget
+                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=2, sticky='we', padx=10, pady=(0,10))
+                else:
+                    widget = tk.Entry(self.entry_frame, width=26, **entry_opts)
+                    self.entries[col] = widget
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+        # Make columns expand equally
+        for i in range(4):
+            self.entry_frame.grid_columnconfigure(i, weight=1)
 
     def update_activities_filter(self, event):
         text = self.entries["Activities"].get()
@@ -507,46 +675,78 @@ class ExcelActivityApp:
         entry.bind("<FocusOut>", on_focus_out)
 
     def add_row(self):
-        import requests
         required_fields = ["Stick-Built", "Module", "Department", "Activities"]
         missing_fields = [col for col in required_fields if not self.entries[col].get().strip()]
+        if not self.current_project:
+            messagebox.showerror("Error", "Please select a project first.")
+            return
         if missing_fields:
             messagebox.showerror("Error", f"Por favor llena los campos requeridos:\n{', '.join(missing_fields)}")
             return
-        # Prepare data for API
-        data = {}
+        # Prepare data for DB insert
+        import sqlalchemy
+        db_path = os.path.join(os.path.dirname(__file__), 'Workload.db')
+        logging.debug(f"Using DB file for insert: {os.path.abspath(db_path)}")
+        engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
+        # Get project_id
+        with engine.connect() as conn:
+            result = conn.execute(sqlalchemy.text('SELECT id FROM project WHERE name = :name'), {'name': self.current_project}).fetchone()
+            project_id = result[0] if result else None
+        if not project_id:
+            messagebox.showerror("Error", "Project not found in database.")
+            return
+        # Build insert dict
+        data = { 'project_id': project_id }
+        # Map form fields to DB columns (assume DB columns match form fields, adjust if needed)
+        # You may need to adjust these mappings if your DB uses different column names
+        # Mapping from form field to DB column
+        field_to_db = {
+            "Stick-Built": "stick_built_id",
+            "Module": "module_id",
+            "Activities": "activities_id",
+            "Title": "title_id",
+            "Technical Unit": "technical_unit_id",
+            "Assigned to": "employee_id",
+            "Progress": "progress_id",
+            "Professional Role": "professional_unit_id",
+            "Department": "department",
+            "Estimated hours (internal)": "estimated_internal_hours",
+            "Estimated hours (external)": "estimated_external_hours",
+            "Start date": "start_date",
+            "Due date": "due_date",
+            "Notes": "notes"
+        }
         for col in self.entries:
             val = self.entries[col].get()
-            # If foreign key, get id
-            if col in self.foreign_key_options:
-                options = self.foreign_key_options[col]
+            db_col = field_to_db.get(col)
+            if db_col is None:
+                continue  # Skip fields not mapped
+            # Foreign key fields (those ending with _id)
+            if db_col.endswith('_id'):
+                options = self.foreign_key_options.get(col, [])
                 match = next((o for o in options if o['name'] == val), None)
-                data_field = col.lower().replace(' ', '_').replace('-', '_') + '_id'
-                data[data_field] = match['id'] if match else None
+                data[db_col] = match['id'] if match else None
             else:
-                data[col.lower().replace(' ', '_').replace('-', '_')] = val
+                data[db_col] = val
+        # Insert into DB
         try:
-            resp = requests.post("http://localhost:5000/services", json=data)
-            if resp.status_code == 200:
-                messagebox.showinfo("Success", "Service added successfully.")
-                self.load_services()
-            else:
-                messagebox.showerror("Error", f"Failed to add service: {resp.text}")
+            columns = ', '.join(data.keys())
+            placeholders = ', '.join([f':{k}' for k in data.keys()])
+            insert_sql = f"INSERT INTO service ({columns}) VALUES ({placeholders})"
+            with engine.begin() as conn:
+                result = conn.execute(sqlalchemy.text(insert_sql), data)
+                logging.info(f"Insert result rowcount: {result.rowcount}, data: {data}")
+            messagebox.showinfo("Success", "Service added successfully.")
+            self.on_project_selected(None)
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to connect to API: {e}")
+            import traceback
+            logging.error(f"Failed to add service: {e}")
+            logging.error(traceback.format_exc())
+            messagebox.showerror("Error", f"Failed to add service: {e}")
 
     def load_services(self):
-        import requests
-        try:
-            resp = requests.get("http://localhost:5000/services")
-            if resp.status_code == 200:
-                data = resp.json()
-                # Convert to DataFrame for display
-                self.df = pd.DataFrame(data)
-                self.original_df = self.df.copy()
-                self.render_table()
-        except Exception:
-            pass
+        # Not used anymore, replaced by on_project_selected
+        pass
 
     def delete_selected(self):
         selected_items = self.tree.selection()

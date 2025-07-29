@@ -35,6 +35,55 @@ Task three : set UI integration :
 4- make sure that save or submit action will save data on service table and will be shown in the table bellow form.
 5- make sure to seed data in service table from excel sheet as following :
 we must seed data in service , from excel sheet here we have a sheet called : List Of Service which is for a general project , Anadarko sheet for Anadarko project and so on.
+-----------------------------------------------------------------------------
+
+Task four : set UI of form and upper part:
+------------------------------------------
+1- refactor form ui to be profissional and to not interupt with the small table -> done
+
+2- add button will open a modal contain the small table of profissional role and manhours
+or keep it in same page but handle its ui and avoid any ui interuption between form and this small table -> done
+
+3- test and check functionality of project popup to work as a filter that will load all service data for specific project at fisrt then we can start to add services dynamically to these project [by excel or manually from form] -> done
+
+4- test add buttom from form [submit action must add service to the project selected in the project dropdown] and make sure that it will be shown in the table . -> done
+
+5- test import from excel button and make sure that it will be shown in the table .
+-----------------------------------------------------------------------------------
+Task Five : Set Services Grid Ui:
+--------------------------------
+
+1- Estimated internal and external without hours
+
+2- check functionality of summation of estimated internal and external to work
+
+3- keep filter after adding new record
+
+4- Add a new column on left side to create an ID counter column just to identify the Qty of activities in total.
+
+5- Add a new column on left side with check box to select the activity row.
+
+6- enhance filter ui, get new ui idea to filter data.
+-------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+CTRL+ALt+I
+
+
+
+
+
+
 
 
 
