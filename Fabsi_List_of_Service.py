@@ -760,33 +760,60 @@ class ExcelActivityApp:
         ]
         label_opts = {'anchor': 'w', 'bg': '#F7F7F7', 'font': ('Arial', 9)}
         entry_opts = {'font': ('Arial', 10)}
+        
+        # Set column weights for better distribution
+        self.entry_frame.grid_columnconfigure(0, weight=2)  # Stick-Built
+        self.entry_frame.grid_columnconfigure(1, weight=2)  # Module
+        self.entry_frame.grid_columnconfigure(2, weight=4)  # Activities (double width)
+        self.entry_frame.grid_columnconfigure(3, weight=2)  # Title
+        
+        # Define field widths
+        field_widths = {
+            "Stick-Built": 30,
+            "Module": 30,
+            "Activities": 60,  # Much wider for Activities
+            "Title": 35,
+            "Technical Unit": 35,
+            "Assigned to": 35,
+            "Progress": 25,
+            "Professional Role": 35,
+            "Department": 25,
+            "Estimated internal": 25,
+            "Estimated external": 25,
+            "Start date": 25,
+            "Due date": 25,
+            "Notes": 70  # Wider for Notes
+        }
+        
         for row_idx, row in enumerate(fields):
             for col_idx, col in enumerate(row):
+                # Create label
                 lbl = tk.Label(self.entry_frame, text=col, **label_opts)
                 lbl.grid(row=row_idx*2, column=col_idx, sticky='w', padx=10, pady=(10,0))
+                
+                # Create field
+                width = field_widths.get(col, 30)  # Default width if not specified
+                
                 if col in self.foreign_key_options:
                     options = self.foreign_key_options[col]
-                    widget = ttk.Combobox(self.entry_frame, width=24, state="readonly", font=('Arial', 11))
+                    widget = ttk.Combobox(self.entry_frame, width=width, state="readonly", font=('Arial', 11))
                     widget['values'] = [o['name'] for o in options]
                     self.entries[col] = widget
                     widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
                 elif col in ["Department", "Estimated internal", "Estimated external", "Start date", "Due date"]:
-                    widget = tk.Entry(self.entry_frame, width=26, **entry_opts)
+                    widget = tk.Entry(self.entry_frame, width=width, **entry_opts)
                     if col == "Department":
                         widget.insert(0, "FABSI")
                     self.entries[col] = widget
                     widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
                 elif col == "Notes":
-                    widget = tk.Entry(self.entry_frame, width=50, **entry_opts)
+                    widget = tk.Entry(self.entry_frame, width=width, **entry_opts)
                     self.entries[col] = widget
                     widget.grid(row=row_idx*2+1, column=col_idx, columnspan=2, sticky='we', padx=10, pady=(0,10))
                 else:
-                    widget = tk.Entry(self.entry_frame, width=26, **entry_opts)
+                    widget = tk.Entry(self.entry_frame, width=width, **entry_opts)
                     self.entries[col] = widget
                     widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
-        # Make columns expand equally
-        for i in range(4):
-            self.entry_frame.grid_columnconfigure(i, weight=1)
 
     def update_activities_filter(self, event):
         text = self.entries["Activities"].get()
@@ -936,22 +963,22 @@ class ExcelActivityApp:
         }
         
         column_widths = {
-            "Select": 35,  # Reduced from 50
-            "ID": 35,      # Reduced from 50  
-            "Stick-Built": 70,    # Slightly increased
-            "Module": 65,         # Slightly increased
-            "Activities": 280,    # Reduced from 370 to fit more columns
-            "Title": 85,          # Increased from 75
-            "Department": 75,     # Reduced from 80
-            "Technical Unit": 120, # Reduced from 150
-            "Assigned to": 100,   # Reduced from 120
-            "Progress": 70,       # Reduced from 75
-            "Estimated internal": 75,  # Increased from 68 for better readability
-            "Estimated external": 75,  # Increased from 68 for better readability
-            "Start date": 70,
-            "Due date": 70,
-            "Notes": 180,         # Reduced from 230
-            "Professional Role": 130  # Reduced from 250
+            "Select": 35,
+            "ID": 35,
+            "Stick-Built": 100,
+            "Module": 100,
+            "Activities": 500,    # Significantly increased for better readability
+            "Title": 150,
+            "Department": 100,
+            "Technical Unit": 180,
+            "Assigned to": 150,
+            "Progress": 80,
+            "Estimated internal": 100,
+            "Estimated external": 100,
+            "Start date": 80,
+            "Due date": 80,
+            "Notes": 250,
+            "Professional Role": 180
         }
         
         header_height = 35  # Further reduced height
