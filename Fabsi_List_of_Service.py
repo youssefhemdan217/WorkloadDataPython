@@ -796,13 +796,24 @@ class ExcelActivityApp:
         tree_frame.grid_columnconfigure(0, weight=1)
         tree_frame.grid_rowconfigure(0, weight=1)
         
-        # Configure headers and columns
+        # Configure headers and columns with increased widths
         column_widths = {
-            "Select": 35, "ID": 35, "Stick-Built": 70, "Module": 65,
-            "Activities": 280, "Title": 85, "Department": 75, "Technical Unit": 120,
-            "Assigned to": 100, "Progress": 70, "Estimated internal": 75,
-            "Estimated external": 75, "Start date": 70, "Due date": 70,
-            "Notes": 180, "Professional Role": 130
+            "Select": 45,               # Increased for better checkbox visibility
+            "ID": 50,                  # Increased for larger numbers
+            "Stick-Built": 100,        # Increased for longer names
+            "Module": 100,             # Increased for longer module names
+            "Activities": 400,          # Significantly increased for full activity descriptions
+            "Title": 150,              # Increased for full titles
+            "Department": 100,         # Increased for department names
+            "Technical Unit": 150,     # Increased for longer unit names
+            "Assigned to": 150,        # Increased for full names
+            "Progress": 100,           # Increased for progress status
+            "Estimated internal": 100,  # Increased for larger numbers
+            "Estimated external": 100,  # Increased for larger numbers
+            "Start date": 100,         # Increased for full date format
+            "Due date": 100,           # Increased for full date format
+            "Notes": 300,              # Significantly increased for full notes
+            "Professional Role": 200    # Increased for full role names
         }
         
         header_map = {
@@ -817,21 +828,23 @@ class ExcelActivityApp:
             "Start date": "Start Date", "Due date": "Due Date"
         }
         
-        # Configure columns
+        # Configure columns with improved readability
         for col in self.df.columns:
             self.tree.heading(col, text=header_map.get(col, col),
                             command=lambda c=col: self.sort_column(c))
             width = column_widths.get(col, 100)
-            self.tree.column(col, width=width, minwidth=50)
+            anchor = 'w' if col in ["Activities", "Title", "Notes", "Technical Unit", 
+                                  "Assigned to", "Professional Role", "Department"] else 'center'
+            self.tree.column(col, width=width, minwidth=50, stretch=True, anchor=anchor)
         
-        # Style the treeview
+        # Style the treeview with increased row height for better readability
         style = ttk.Style()
         style.configure("Treeview",
                        background="white",
                        foreground="black",
-                       rowheight=25,
+                       rowheight=40,  # Increased row height
                        fieldbackground="white",
-                       font=('Arial', 9))
+                       font=('Arial', 10))  # Slightly larger font
         
         style.configure("Treeview.Heading",
                        background="#D9D9D9",

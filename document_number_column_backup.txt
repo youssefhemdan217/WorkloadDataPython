@@ -1,0 +1,39 @@
+// Backup of Document Number column related code from Fabsi_List_of_Service.py
+
+1. Original column definition in display_columns (from __init__ method):
+self.display_columns = [
+    "Select", "ID", "Stick-Built", "Module", "Document Number", "Activities", "Title", "Department",
+    "Technical Unit", "Assigned to", "Progress", "Estimated internal",
+    "Estimated external", "Start date", "Due date", "Notes", "Professional Role"
+]
+
+2. Document Number in SQL query (from on_project_selected method):
+'''
+SELECT
+    s.id,
+    sb.name AS "Stick-Built",
+    m.name AS "Module",
+    s.id AS "Document Number",  // This line maps the service ID to Document Number
+    a.name AS "Activities",
+    ...
+'''
+
+3. Document Number in column_widths configuration:
+column_widths = {
+    ...
+    "Document Number": 65,
+    ...
+}
+
+4. Usage in delete_selected method (for finding database IDs):
+# Get the actual database IDs from the Document Number column
+ids_to_delete = []
+for row_idx in self.selected_rows:
+    if row_idx < len(self.df) and 'Document Number' in self.df.columns:
+        db_id = self.df.iloc[row_idx]['Document Number']
+        if pd.notnull(db_id):  # Only add valid IDs
+            ids_to_delete.append(int(db_id))
+
+Note: The Document Number column was used to store and display the database ID (s.id) of each service record. 
+This was important for operations like deletion where we need to know the database ID of the record.
+The column was hidden to simplify the UI but the ID information is still maintained in the database.
