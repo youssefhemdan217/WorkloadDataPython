@@ -10,6 +10,7 @@ import tkinter as tk
 import pandas as pd
 import os
 import subprocess
+import traceback
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 
 class ExcelActivityApp:
@@ -148,33 +149,33 @@ class ExcelActivityApp:
         self.edit_popup = None
 
     def setup_ui(self):
-        # Create header frame
-        header_frame = tk.Frame(self.root, bg='white', height=100)
-        header_frame.pack(fill='x', padx=10, pady=(5, 10))
+        # Create header frame - reduced height
+        header_frame = tk.Frame(self.root, bg='white', height=60)  # Reduced from 100 to 60
+        header_frame.pack(fill='x', padx=10, pady=(2, 5))  # Reduced padding
         header_frame.pack_propagate(False)
 
-        # Left logo placeholder
-        left_logo_frame = tk.Frame(header_frame, width=100, height=80, bg='white')
-        left_logo_frame.pack(side='left', padx=20)
-        left_logo_label = tk.Label(left_logo_frame, text="Logo 1", bg='white')  # Replace with actual logo
+        # Left logo placeholder - smaller size
+        left_logo_frame = tk.Frame(header_frame, width=70, height=50, bg='white')  # Reduced size
+        left_logo_frame.pack(side='left', padx=10)  # Reduced padding
+        left_logo_label = tk.Label(left_logo_frame, text="Logo 1", bg='white', font=("Arial", 8))
         left_logo_label.pack(expand=True)
 
-        # Title in center
+        # Title in center - smaller font
         title_frame = tk.Frame(header_frame, bg='white')
         title_frame.pack(side='left', expand=True)
         title_label = tk.Label(
             title_frame, 
             text="FABSI - List of Service",
-            font=("Arial", 24, "bold"),
+            font=("Arial", 18, "bold"),  # Reduced font size from 24 to 18
             bg='white',
-            fg='#1976D2'  # Professional blue color
+            fg='#1976D2'
         )
         title_label.pack(expand=True)
 
-        # Right logo placeholder
-        right_logo_frame = tk.Frame(header_frame, width=100, height=80, bg='white')
-        right_logo_frame.pack(side='right', padx=20)
-        right_logo_label = tk.Label(right_logo_frame, text="Logo 2", bg='white')  # Replace with actual logo
+        # Right logo placeholder - smaller size
+        right_logo_frame = tk.Frame(header_frame, width=70, height=50, bg='white')  # Reduced size
+        right_logo_frame.pack(side='right', padx=10)  # Reduced padding
+        right_logo_label = tk.Label(right_logo_frame, text="Logo 2", bg='white', font=("Arial", 8))
         right_logo_label.pack(expand=True)
 
         # Add a separator
@@ -274,33 +275,165 @@ class ExcelActivityApp:
         self.selected_rows.clear()
         self.render_table()
     def open_role_summary_modal(self):
+        """Open a modal window showing the Professional Role summary table"""
         if hasattr(self, 'role_summary_modal') and self.role_summary_modal and tk.Toplevel.winfo_exists(self.role_summary_modal):
             self.role_summary_modal.lift()
             return
+
+        # Create new modal window
         self.role_summary_modal = tk.Toplevel(self.root)
-        self.role_summary_modal.title("Professional Role & Manhours Summary")
-        self.role_summary_modal.geometry("350x300")
+        self.role_summary_modal.title("Professional Role & Hours Summary")
+        self.role_summary_modal.geometry("400x400")
         self.role_summary_modal.transient(self.root)
         self.role_summary_modal.grab_set()
+
+        # Add title label
+        title_label = tk.Label(
+            self.role_summary_modal,
+            text="Total Hours per Professional Role",
+            font=("Arial", 12, "bold"),
+            fg="#1976D2",
+            pady=10
+        )
+        title_label.pack()
+
+        # Create main frame
         frame = tk.Frame(self.role_summary_modal, bd=1, relief='solid')
-        frame.pack(fill='both', expand=True, padx=10, pady=10)
-        tree = ttk.Treeview(
+        frame.pack(fill='both', expand=True, padx=10, pady=(0, 10))
+
+        # Create treeview with fixed column widths
+        self.role_summary_tree = ttk.Treeview(
             frame,
             columns=["Professional Role", "Manhours"],
-            show='headings', height=10
+            show='headings',
+            height=15,
+            style="Summary.Treeview"
         )
-        tree.heading("Professional Role", text="Professional Role")
-        tree.heading("Manhours", text="Manhours")
-        tree.column("Professional Role", width=180, anchor='w')
-        tree.column("Manhours", width=90, anchor='e')
-        tree.pack(fill='both', expand=True)
-        # Fill the tree with summary data
-        if hasattr(self, 'role_summary_data') and not self.role_summary_data.empty:
-            for _, row in self.role_summary_data.iterrows():
-                manhours = f"{row['Estimated internal']:,.0f}" if pd.notnull(row["Estimated internal"]) else ""
-                tree.insert("", "end", values=(row["Professional Role"], manhours))
-        close_btn = tk.Button(self.role_summary_modal, text="Close", command=self.role_summary_modal.destroy)
-        close_btn.pack(pady=5)
+
+        # Configure treeview style
+        style = ttk.Style()
+        style.configure("Summary.Treeview",
+                       background="white",
+                       foreground="black",
+                       rowheight=25,
+                       fieldbackground="white")
+        style.configure("Summary.Treeview.Heading",
+                       font=('Arial', 9, 'bold'),
+                       background="#E3F2FD")
+
+        # Configure headers
+        self.role_summary_tree.heading("Professional Role", text="Professional Role",
+                                     command=lambda: self.sort_summary("Professional Role"))
+        self.role_summary_tree.heading("Manhours", text="Internal Hours",
+                                     command=lambda: self.sort_summary("Manhours"))
+
+        # Configure columns
+        self.role_summary_tree.column("Professional Role", width=250, anchor='w')
+        self.role_summary_tree.column("Manhours", width=120, anchor='e')
+
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=self.role_summary_tree.yview)
+        self.role_summary_tree.configure(yscrollcommand=scrollbar.set)
+
+        # Pack tree and scrollbar
+        self.role_summary_tree.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
+
+        # Update the summary data
+        self.update_role_summary()
+
+        # Add close button
+        close_btn = tk.Button(
+            self.role_summary_modal,
+            text="Close",
+            command=self.role_summary_modal.destroy,
+            bg="#1976D2",
+            fg="white",
+            padx=20,
+            font=("Arial", 10)
+        )
+        close_btn.pack(pady=10)
+
+    def sort_column(self, column, ascending=True):
+        """Sort the data by column"""
+        if self.filter_popup:
+            self.filter_popup.destroy()
+        
+        if column in self.df.columns:
+            self.df = self.df.sort_values(by=column, ascending=ascending, na_position='last')
+            self.render_table()
+    
+    def apply_column_filter(self, column, selected_indices):
+        """Apply filter to the column based on selected values"""
+        if not selected_indices:  # If nothing selected, show all
+            self.clear_column_filter(column)
+            return
+            
+        # Get selected values from listbox
+        values = []
+        for idx in selected_indices:
+            values.append(self.current_filter_values[idx])
+        
+        # Apply filter to DataFrame
+        self.df = self.df[self.df[column].astype(str).isin(values)]
+        
+        # Close popup and update display
+        if self.filter_popup:
+            self.filter_popup.destroy()
+        self.render_table()
+        self.update_sum_labels()
+        self.update_role_summary()
+    
+    def clear_column_filter(self, column):
+        """Clear filter for the column and show all values"""
+        # Reset to original data
+        display_cols_without_select_id = [col for col in self.display_columns if col not in ['Select', 'ID']]
+        available_cols = [col for col in display_cols_without_select_id if col in self.original_df.columns]
+        
+        # Create a new DataFrame from original data
+        self.df = self.original_df[available_cols].copy()
+        
+        # Add Select and ID columns
+        self.df.insert(0, 'Select', False)
+        self.df.insert(1, 'ID', range(1, len(self.df) + 1))
+        
+        # Close popup and update display
+        if self.filter_popup:
+            self.filter_popup.destroy()
+        self.render_table()
+        self.update_sum_labels()
+        self.update_role_summary()
+
+    def sort_summary(self, column):
+        """Sort the role summary table by clicking on headers"""
+        if not hasattr(self, 'role_summary_tree') or not self.role_summary_tree:
+            return
+
+        # Get all items except the total row
+        items = [(self.role_summary_tree.set(item, column), item)
+                for item in self.role_summary_tree.get_children('')]
+        
+        if not items:
+            return
+
+        # Remove the total row if it exists (last row)
+        if items[-1][0] == "TOTAL":
+            total_values = self.role_summary_tree.item(items[-1][1])['values']
+            items.pop()
+        else:
+            total_values = None
+
+        # Sort items
+        items.sort(reverse=hasattr(self, '_summary_sort_reverse') and not self._summary_sort_reverse)
+        self._summary_sort_reverse = not getattr(self, '_summary_sort_reverse', False)
+
+        # Move items in the tree
+        for idx, (_, item) in enumerate(items):
+            self.role_summary_tree.move(item, '', idx)
+
+        # Re-add total row at the bottom if it existed
+        if total_values:
+            self.role_summary_tree.insert("", "end", values=total_values, tags=('total',))
 
         # (moved to setup_ui)
 
@@ -346,33 +479,47 @@ class ExcelActivityApp:
             print(f"Error updating labels: {e}")
 
     def update_role_summary(self):
-        # Only update if the modal/tree exists
-        if not hasattr(self, 'role_summary_tree') or self.role_summary_tree is None:
-            # Still update the summary data for the modal
-            if "Professional Role" in self.df.columns and "Estimated internal" in self.df.columns:
+        """Update the role summary based on the currently displayed/filtered data"""
+        if not hasattr(self, 'role_summary_tree') or not self.role_summary_tree:
+            return
+        
+        # Clear existing items
+        for row in self.role_summary_tree.get_children():
+            self.role_summary_tree.delete(row)
+        
+        # Calculate summary from current filtered data
+        if "Professional Role" in self.df.columns and "Estimated internal" in self.df.columns:
+            try:
+                # Create summary from current filtered data
                 summary = (
                     self.df.groupby("Professional Role")["Estimated internal"]
                     .apply(lambda x: pd.to_numeric(x, errors='coerce').sum())
                     .reset_index()
                 )
+                
+                # Clean up the summary data
                 summary = summary[summary["Professional Role"].notnull() & (summary["Professional Role"] != "")]
-                summary = summary[summary["Estimated internal"] > 0]
+                summary = summary[summary["Estimated internal"] > 0]  # Only show roles with hours
+                summary = summary.sort_values("Estimated internal", ascending=False)  # Sort by hours descending
                 self.role_summary_data = summary
-            return
-        for row in self.role_summary_tree.get_children():
-            self.role_summary_tree.delete(row)
-        if "Professional Role" in self.df.columns and "Estimated internal" in self.df.columns:
-            summary = (
-                self.df.groupby("Professional Role")["Estimated internal"]
-                .apply(lambda x: pd.to_numeric(x, errors='coerce').sum())
-                .reset_index()
-            )
-            summary = summary[summary["Professional Role"].notnull() & (summary["Professional Role"] != "")]
-            summary = summary[summary["Estimated internal"] > 0]
-            self.role_summary_data = summary  # Guarda el DataFrame actual para editar
-            for _, row in summary.iterrows():
-                manhours = f"{row['Estimated internal']:,.0f}" if pd.notnull(row["Estimated internal"]) else ""
-                self.role_summary_tree.insert("", "end", values=(row["Professional Role"], manhours))
+                
+                # Add rows to the tree
+                total_hours = 0
+                for _, row in summary.iterrows():
+                    hours = row["Estimated internal"] if pd.notnull(row["Estimated internal"]) else 0
+                    total_hours += hours
+                    manhours = f"{hours:,.0f}" if hours > 0 else "0"
+                    self.role_summary_tree.insert("", "end", values=(row["Professional Role"], manhours))
+                
+                # Add total row if there are entries
+                if len(summary) > 0:
+                    self.role_summary_tree.insert("", "end", values=("TOTAL", f"{total_hours:,.0f}"),
+                                                tags=('total',))
+                    self.role_summary_tree.tag_configure('total', background='#E3F2FD',
+                                                       font=('Arial', 9, 'bold'))
+            except Exception as e:
+                print(f"Error updating role summary: {e}")
+                traceback.print_exc()
 
     def edit_role_summary_cell(self, event):
         # Permite editar la tabla resumen haciendo doble clic
@@ -615,81 +762,114 @@ class ExcelActivityApp:
             self.entries["Activities"]['values'] = all_activities
 
     def render_table(self):
+        """Render the main table with data"""
+        # Clear existing widgets
         for widget in self.table_frame.winfo_children():
             widget.destroy()
         
-        # Create a main container with scrollbars that will contain everything
-        main_container = tk.Frame(self.table_frame)
+        # Create main container
+        main_container = ttk.Frame(self.table_frame)
         main_container.pack(fill='both', expand=True)
         
-        # Create canvas for scrolling
-        self.canvas = tk.Canvas(main_container, bg='white')
+        # Create the container for our data table
+        self.scrollable_frame = ttk.Frame(main_container)
+        self.scrollable_frame.pack(fill='both', expand=True, padx=5, pady=5)
+        
+        # Create and configure treeview with scrollbars
+        tree_frame = ttk.Frame(self.scrollable_frame)
+        tree_frame.pack(fill='both', expand=True)
+        
+        # Create Treeview
+        self.tree = ttk.Treeview(tree_frame, columns=list(self.df.columns), show='headings', height=20)
         
         # Create scrollbars
-        v_scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=self.canvas.yview)
-        h_scrollbar = ttk.Scrollbar(main_container, orient="horizontal", command=self.canvas.xview)
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
         
-        # Configure canvas
-        self.canvas.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+        # Grid layout
+        self.tree.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        hsb.grid(row=1, column=0, sticky='ew')
         
-        # Pack scrollbars and canvas
-        v_scrollbar.pack(side="right", fill="y")
-        h_scrollbar.pack(side="bottom", fill="x")
-        self.canvas.pack(side="left", fill="both", expand=True)
+        # Configure grid weights
+        tree_frame.grid_columnconfigure(0, weight=1)
+        tree_frame.grid_rowconfigure(0, weight=1)
         
-        # Create scrollable frame inside canvas
-        self.scrollable_frame = tk.Frame(self.canvas, bg='white')
-        self.canvas_frame = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        # Configure headers and columns
+        column_widths = {
+            "Select": 35, "ID": 35, "Stick-Built": 70, "Module": 65,
+            "Activities": 280, "Title": 85, "Department": 75, "Technical Unit": 120,
+            "Assigned to": 100, "Progress": 70, "Estimated internal": 75,
+            "Estimated external": 75, "Start date": 70, "Due date": 70,
+            "Notes": 180, "Professional Role": 130
+        }
         
-        # Configure scrolling
-        def configure_scroll_region(event):
-            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        header_map = {
+            "Select": "☑", "ID": "ID", "Stick-Built": "Stick-Built",
+            "Module": "Module", "Activities": "Activities",
+            "Title": "Title", "Department": "Department",
+            "Technical Unit": "Tech. Unit", "Assigned to": "Assigned To",
+            "Progress": "Progress", "Notes": "Notes",
+            "Professional Role": "Professional Role",
+            "Estimated internal": "Est. Internal",
+            "Estimated external": "Est. External",
+            "Start date": "Start Date", "Due date": "Due Date"
+        }
         
-        def configure_canvas_width(event):
-            self.canvas.itemconfig(self.canvas_frame, width=event.width)
+        # Configure columns
+        for col in self.df.columns:
+            self.tree.heading(col, text=header_map.get(col, col),
+                            command=lambda c=col: self.sort_column(c))
+            width = column_widths.get(col, 100)
+            self.tree.column(col, width=width, minwidth=50)
         
-        def on_mousewheel(event):
-            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        # Style the treeview
+        style = ttk.Style()
+        style.configure("Treeview",
+                       background="white",
+                       foreground="black",
+                       rowheight=25,
+                       fieldbackground="white",
+                       font=('Arial', 9))
         
-        def on_shift_mousewheel(event):
-            self.canvas.xview_scroll(int(-1*(event.delta/120)), "units")
+        style.configure("Treeview.Heading",
+                       background="#D9D9D9",
+                       font=('Arial', 9, 'bold'))
         
-        self.scrollable_frame.bind("<Configure>", configure_scroll_region)
-        self.canvas.bind("<Configure>", configure_canvas_width)
-        self.canvas.bind("<MouseWheel>", on_mousewheel)
-        self.canvas.bind("<Shift-MouseWheel>", on_shift_mousewheel)
+        # Insert data
+        for i, row in self.df.iterrows():
+            tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+            row_values = list(row)
+            if len(row_values) > 0 and 'Select' in self.df.columns:
+                checkbox_idx = self.df.columns.get_loc('Select')
+                row_values[checkbox_idx] = '☑' if i in self.selected_rows else '☐'
+            self.tree.insert('', 'end', iid=str(i), values=row_values, tags=(tag,))
         
-        # Bind mouse wheel to canvas when mouse enters
-        def bind_mousewheel(event):
-            self.canvas.bind_all("<MouseWheel>", on_mousewheel)
-            self.canvas.bind_all("<Shift-MouseWheel>", on_shift_mousewheel)
+        # Configure row colors
+        self.tree.tag_configure('oddrow', background='white')
+        self.tree.tag_configure('evenrow', background='#F8F8F8')
         
-        def unbind_mousewheel(event):
-            self.canvas.unbind_all("<MouseWheel>")
-            self.canvas.unbind_all("<Shift-MouseWheel>")
+        # Bind events
+        self.tree.bind("<Double-1>", self.edit_cell)
+        self.tree.bind("<Button-1>", self.on_checkbox_click)
         
-        self.canvas.bind('<Enter>', bind_mousewheel)
-        self.canvas.bind('<Leave>', unbind_mousewheel)
-        
-        # 1. Create header with filters
-        self.create_unified_header()
-        
-        # 2. Create data rows
-        self.create_data_rows()
-        
-        # 3. Create summation row at the bottom
+        # Create summation row
         self.create_summation_row()
-        
-        # Update canvas scroll region
-        self.scrollable_frame.update_idletasks()
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def get_visible_columns(self):
+        """Get list of columns to display (excluding Document Number)"""
+        columns = [col for col in self.df.columns if col != "Document Number"]
+        return columns
 
     def create_unified_header(self):
         """Create header with filters that scrolls with data"""
+        # Reset any existing filter menus
+        self.filter_menus = {}
+        
         header_map = {
             "Select": "☑",
             "ID": "ID",
-            "Document Number": "Doc #",
             "Estimated internal": "Est. Internal",
             "Estimated external": "Est. External", 
             "Start date": "Start Date",
@@ -711,7 +891,6 @@ class ExcelActivityApp:
             "ID": 35,      # Reduced from 50  
             "Stick-Built": 70,    # Slightly increased
             "Module": 65,         # Slightly increased
-            "Document Number": 65, # Reduced from 70
             "Activities": 280,    # Reduced from 370 to fit more columns
             "Title": 85,          # Increased from 75
             "Department": 75,     # Reduced from 80
@@ -726,13 +905,14 @@ class ExcelActivityApp:
             "Professional Role": 130  # Reduced from 250
         }
         
-        header_height = 40  # Reduced from 60 to 40
+        header_height = 35  # Further reduced height
         header_frame = tk.Frame(self.scrollable_frame, height=header_height, bg="#D9D9D9", relief='groove', bd=1)
         header_frame.pack(fill='x', pady=(0,2))
         header_frame.pack_propagate(False)
         
         self.header_labels = []
         self.filter_vars = {}
+        self.filter_menus = {}  # Store filter menu buttons
         x_offset = 0
         
         for idx, col in enumerate(self.df.columns):
@@ -744,57 +924,196 @@ class ExcelActivityApp:
             cell_frame.place(x=x_offset, y=0, width=width, height=header_height)
             cell_frame.pack_propagate(False)
             
-            # Header text and sort buttons container
-            header_text_frame = tk.Frame(cell_frame, bg="#D9D9D9")
-            header_text_frame.pack(fill='x', pady=(2,0))
+            # Header container with text and filter button
+            header_container = tk.Frame(cell_frame, bg="#D9D9D9")
+            header_container.pack(fill='x', expand=True, pady=(2,0))
             
-            # Header label
-            lbl = tk.Label(
-                header_text_frame,
-                text=txt,
-                font=('Arial', 7, 'bold'),  # Reduced font size
-                justify='center',
-                anchor='center',
-                bg='#D9D9D9',
-                relief='flat',
-                wraplength=width-25,
-                fg='#333'
-            )
-            lbl.pack(side='left', fill='x', expand=True)
+            # Header text label
+            header_label = tk.Label(header_container, text=txt, bg="#D9D9D9", 
+                                  font=('Arial', 8, 'bold'), anchor='w')
+            header_label.pack(side='left', padx=(2,0))
             
-            # Add sort buttons for sortable columns
+            # Filter button - only add for non-Select and non-ID columns
             if col not in ["Select", "ID"]:
-                sort_frame = tk.Frame(header_text_frame, bg="#D9D9D9")
-                sort_frame.pack(side='right', padx=1)
-                
-                sort_asc_btn = tk.Button(sort_frame, text="▲", font=('Arial', 6), bg="#C0C0C0", fg="black",
-                                       command=lambda c=col: self.sort_column(c, True), width=1, height=1)
-                sort_asc_btn.pack(side='top')
-                
-                sort_desc_btn = tk.Button(sort_frame, text="▼", font=('Arial', 6), bg="#C0C0C0", fg="black",
-                                        command=lambda c=col: self.sort_column(c, False), width=1, height=1)
-                sort_desc_btn.pack(side='top')
-            
-            # Filter dropdown
-            filter_var = tk.StringVar()
-            filter_var.set("Todos")
-            self.filter_vars[col] = filter_var
-            
-            if col in ["Select", "ID"]:
-                # Empty space for alignment
-                empty_frame = tk.Frame(cell_frame, height=25, bg="#D9D9D9")
-                empty_frame.pack(fill='x', padx=2, pady=(0,2))
-            else:
-                values = sorted(self.df[col].dropna().astype(str).unique()) if not self.df.empty else []
-                values = ["Todos"] + values
-                cmb = ttk.Combobox(
-                    cell_frame, textvariable=filter_var, width=max(6, int(width/10)),
-                    values=values, state="readonly", font=('Arial', 7))
-                cmb.pack(fill='x', padx=2, pady=(0,1))  # Reduced bottom padding
-                cmb.bind("<<ComboboxSelected>>", self.apply_dropdown_filters)
-                self.header_labels.append((lbl, cmb))
+                filter_btn = tk.Button(header_container, text="↓", font=('Arial', 7),
+                                     width=2, height=1, relief='flat', bg="#D9D9D9",
+                                     command=lambda c=col: self.show_column_filter(c))
+                filter_btn.pack(side='right', padx=(0,1))
+                self.filter_menus[col] = filter_btn
             
             x_offset += width
+            
+    def show_column_filter(self, column):
+        """Show Excel-like filter popup for the column"""
+        # Close existing popup if any
+        if hasattr(self, 'filter_popup') and self.filter_popup:
+            self.filter_popup.destroy()
+        
+        # Get button widget and position
+        filter_btn = self.filter_menus[column]
+        x = filter_btn.winfo_rootx()
+        y = filter_btn.winfo_rooty() + filter_btn.winfo_height()
+        
+        # Create popup window
+        self.filter_popup = tk.Toplevel(self.root)
+        self.filter_popup.wm_overrideredirect(True)
+        self.filter_popup.geometry(f"200x350+{x}+{y}")  # Made taller to fit all elements
+        self.filter_popup.configure(bg='white', bd=1, relief='solid')
+        
+        # Main container frame
+        main_frame = tk.Frame(self.filter_popup, bg='white')
+        main_frame.pack(fill='both', expand=True, padx=2, pady=2)
+        
+        # Store current filter values for search
+        self.current_filter_values = []
+        if column in self.df.columns:
+            self.current_filter_values = sorted(self.df[column].unique().tolist())
+            self.current_filter_values = [str(val) for val in self.current_filter_values if pd.notnull(val)]
+        
+        # Frame for sort options at the top
+        sort_frame = tk.Frame(main_frame, bg='white')
+        sort_frame.pack(fill='x', pady=(0, 2))
+        
+        # Sort buttons
+        tk.Button(sort_frame, text="Sort A → Z", 
+                 command=lambda: self.sort_column(column, ascending=True),
+                 relief='flat', bg='white', anchor='w').pack(fill='x')
+        tk.Button(sort_frame, text="Sort Z → A",
+                 command=lambda: self.sort_column(column, ascending=False),
+                 relief='flat', bg='white', anchor='w').pack(fill='x')
+        
+        # Separator
+        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=2)
+        
+        # Filter options frame
+        filter_frame = tk.Frame(self.filter_popup, bg='white')
+        filter_frame.pack(fill='both', expand=True, padx=2)
+        
+        # Search entry
+        search_var = tk.StringVar()
+        search_entry = tk.Entry(filter_frame, textvariable=search_var, 
+                              font=('Arial', 9))
+        search_entry.pack(fill='x', pady=2)
+        
+        # Checkboxes container with scrollbar
+        checkbox_container = tk.Frame(filter_frame)
+        checkbox_container.pack(fill='both', expand=True)
+        
+        # Create canvas for scrolling checkboxes
+        canvas = tk.Canvas(checkbox_container, bg='white')
+        scrollbar = ttk.Scrollbar(checkbox_container, orient="vertical", command=canvas.yview)
+        
+        # Frame to hold checkboxes
+        checkbox_frame = tk.Frame(canvas, bg='white')
+        canvas.create_window((0, 0), window=checkbox_frame, anchor='nw')
+        
+        # Dictionary to store checkbox variables
+        self.filter_vars = {}
+        
+        # Add checkboxes
+        for val in self.current_filter_values:
+            var = tk.BooleanVar()
+            self.filter_vars[val] = var
+            cb = ttk.Checkbutton(checkbox_frame, text=str(val), variable=var)
+            cb.pack(anchor='w', padx=5, pady=1)
+        
+        # Configure scrolling
+        def on_frame_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        
+        checkbox_frame.bind('<Configure>', on_frame_configure)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack canvas and scrollbar
+        canvas.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
+        
+        # Update filter options based on search
+        def update_search(*args):
+            search_text = search_var.get().lower()
+            for widget in checkbox_frame.winfo_children():
+                if isinstance(widget, ttk.Checkbutton):
+                    if search_text in widget.cget('text').lower():
+                        widget.pack(anchor='w', padx=5, pady=1)
+                    else:
+                        widget.pack_forget()
+        
+        search_var.trace('w', update_search)
+        
+        # Buttons frame at the bottom
+        btn_frame = tk.Frame(self.filter_popup, bg='white')
+        btn_frame.pack(side='bottom', fill='x', padx=2, pady=4)
+        
+        # Button styles
+        button_style = {'font': ('Arial', 8), 'width': 8, 'pady': 2}
+        
+        # Pack buttons with equal spacing
+        tk.Button(btn_frame, text="Apply", 
+                 command=lambda: self.apply_column_filter(column),
+                 bg='#1976D2', fg='white', **button_style).pack(side='left', expand=True, padx=2)
+        tk.Button(btn_frame, text="Clear",
+                 command=lambda: self.clear_column_filter(column),
+                 bg='#FF9800', fg='white', **button_style).pack(side='left', expand=True, padx=2)
+        tk.Button(btn_frame, text="Cancel",
+                 command=self.filter_popup.destroy,
+                 bg='#F44336', fg='white', **button_style).pack(side='left', expand=True, padx=2)
+        
+        # Handle click outside popup
+        def on_click_outside(event):
+            if event.widget == self.filter_popup:
+                self.filter_popup.destroy()
+        
+        self.filter_popup.bind('<Button-1>', on_click_outside)
+        
+        # Set focus to search entry
+        search_entry.focus()
+
+    def update_filter_list(self, search_text, listbox):
+        """Update the filter listbox based on search text"""
+        listbox.delete(0, tk.END)
+        items = [item for item in self.current_filter_values 
+                if str(search_text).lower() in str(item).lower()]
+        for item in sorted(items):
+            listbox.insert(tk.END, str(item))
+
+    def sort_column(self, column, ascending=True):
+        """Sort the data by column"""
+        if self.filter_popup:
+            self.filter_popup.destroy()
+        
+        if column in self.df.columns:
+            self.df = self.df.sort_values(by=column, ascending=ascending, na_position='last')
+            self.render_table()
+
+    def apply_column_filter(self, column, *args):
+        """Apply filter to the column based on selected checkboxes"""
+        # Get selected values from checkboxes
+        selected_values = [val for val, var in self.filter_vars.items() if var.get()]
+        
+        if not selected_values:  # If nothing selected, show all
+            self.clear_column_filter(column)
+            return
+        
+        # Apply filter
+        mask = self.df[column].astype(str).isin([str(v) for v in selected_values])
+        self.df = self.df[mask]
+        
+        if self.filter_popup:
+            self.filter_popup.destroy()
+            
+        self.render_table()
+        self.update_sum_labels()
+        self.update_role_summary()
+
+    def clear_column_filter(self, column):
+        """Clear filter for the column"""
+        # Reset to original data for this column
+        self.df = self.original_df.copy()
+        if self.filter_popup:
+            self.filter_popup.destroy()
+        self.render_table()
+        self.update_sum_labels()
+        self.update_role_summary()
 
     def create_data_rows(self):
         """Create the data rows section"""
@@ -852,70 +1171,77 @@ class ExcelActivityApp:
         self.tree.tag_configure('evenrow', background='#F8F8F8')
 
     def create_summation_row(self):
-        """Create summation row at the bottom"""
-        # Column widths (same as above for consistency)
-        column_widths = {
-            "Select": 35, "ID": 35, "Stick-Built": 70, "Module": 65, "Document Number": 65,
-            "Activities": 280, "Title": 85, "Department": 75, "Technical Unit": 120,
-            "Assigned to": 100, "Progress": 70, "Estimated internal": 75,
-            "Estimated external": 75, "Start date": 70, "Due date": 70,
-            "Notes": 180, "Professional Role": 130
-        }
+        """Create a fixed summary row below the table"""
+        # Create a frame for totals
+        totals_frame = ttk.Frame(self.scrollable_frame)
+        totals_frame.pack(fill='x', pady=(5,0))
         
-        # Create summation frame
-        sum_frame = tk.Frame(self.scrollable_frame, height=50, bg='#F0F0F0', relief='groove', bd=2)
-        sum_frame.pack(fill='x', pady=(2,0))
-        sum_frame.pack_propagate(False)
+        # Create styled containers for totals
+        internal_frame = ttk.Frame(totals_frame, style='Summary.TFrame')
+        internal_frame.pack(side='left', padx=10)
         
-        # Calculate positions for summation labels
-        x_offset = 0
-        for col in self.df.columns:
-            width = column_widths.get(col, 120)
-            
-            if col == "Estimated internal":
-                # Create internal total container
-                internal_container = tk.Frame(sum_frame, bg='#E8F5E8', relief='raised', bd=1)
-                internal_container.place(x=x_offset, y=5, width=width-2, height=40)
-                
-                tk.Label(internal_container, text="Total Internal", anchor='center', 
-                        font=('Arial', 7, 'bold'), fg='#333', bg='#E8F5E8').pack(pady=(2,0))
-                
-                self.total_label_internal = tk.Label(internal_container, text="0.00", anchor='center', 
-                                                   font=('Arial', 9, 'bold'), bg='#E8F5E8', fg='#2E7D32')
-                self.total_label_internal.pack(pady=(0,2))
-                
-            elif col == "Estimated external":
-                # Create external total container
-                external_container = tk.Frame(sum_frame, bg='#FFF3E0', relief='raised', bd=1)
-                external_container.place(x=x_offset, y=5, width=width-2, height=40)
-                
-                tk.Label(external_container, text="Total External", anchor='center', 
-                        font=('Arial', 7, 'bold'), fg='#333', bg='#FFF3E0').pack(pady=(2,0))
-                
-                self.total_label_external = tk.Label(external_container, text="0.00", anchor='center', 
-                                                   font=('Arial', 9, 'bold'), bg='#FFF3E0', fg='#E65100')
-                self.total_label_external.pack(pady=(0,2))
-            
-            x_offset += width
+        external_frame = ttk.Frame(totals_frame, style='Summary.TFrame')
+        external_frame.pack(side='left', padx=10)
+        
+        # Configure styles
+        style = ttk.Style()
+        style.configure('Summary.TFrame', background='#F0F0F0')
+        style.configure('SummaryLabel.TLabel', 
+                       font=('Arial', 9, 'bold'),
+                       background='#F0F0F0',
+                       padding=(5, 2))
+        style.configure('SummaryValue.TLabel',
+                       font=('Arial', 10, 'bold'),
+                       foreground='#2E7D32',
+                       background='#F0F0F0',
+                       padding=(5, 2))
+        
+        # Internal total
+        ttk.Label(internal_frame, 
+                  text="Total Internal Hours:", 
+                  style='SummaryLabel.TLabel').pack(side='left')
+        
+        self.total_label_internal = ttk.Label(internal_frame,
+                                            text="0.00",
+                                            style='SummaryValue.TLabel')
+        self.total_label_internal.pack(side='left', padx=(5,0))
+        
+        # External total
+        ttk.Label(external_frame,
+                  text="Total External Hours:",
+                  style='SummaryLabel.TLabel').pack(side='left')
+        
+        self.total_label_external = ttk.Label(external_frame,
+                                            text="0.00", 
+                                            style='SummaryValue.TLabel')
+        self.total_label_external.pack(side='left', padx=(5,0))
 
     def on_checkbox_click(self, event):
-        """Handle checkbox column clicks"""
-        item = self.tree.identify_row(event.y)
-        column = self.tree.identify_column(event.x)
-        if not item or not column:
-            return
+        """Handle checkbox column clicks for row selection"""
+        item = self.tree.identify('item', event.x, event.y)
+        column = self.tree.identify('column', event.x, event.y)
         
+        if not item or not column.startswith('#'):
+            return
+            
         col_idx = int(column.replace('#', '')) - 1
-        if col_idx == 0 and 'Select' in self.df.columns:  # First column is Select
+        col_name = self.df.columns[col_idx]
+        
+        if col_name == 'Select':
             row_idx = int(item)
+            values = list(self.tree.item(item)['values'])
+            
+            # Toggle selection
             if row_idx in self.selected_rows:
                 self.selected_rows.remove(row_idx)
-                print(f"Deselected row {row_idx}")
+                values[0] = '☐'
             else:
                 self.selected_rows.add(row_idx)
-                print(f"Selected row {row_idx}")
-            print(f"Total selected: {len(self.selected_rows)} rows")
-            self.render_table()  # Refresh to update checkboxes
+                values[0] = '☑'
+                
+            # Update tree display without full refresh
+            self.tree.item(item, values=values)
+            print(f"Selected rows: {len(self.selected_rows)}")
 
     def apply_dropdown_filters(self, event=None):
         # Start with original data without Select and ID columns
@@ -950,6 +1276,7 @@ class ExcelActivityApp:
         self.df = df_filtered
         self.render_table()
         self.update_sum_labels()  # Update totals after filtering
+        self.update_role_summary()  # Update role summary with filtered data
 
     def reset_filters(self):
         """Reset all filters and restore original project data"""
@@ -1012,24 +1339,54 @@ class ExcelActivityApp:
                 print(f"Error sorting column {column}: {e}")
 
     def edit_cell(self, event):
-        item = self.tree.identify_row(event.y)
-        column = self.tree.identify_column(event.x)
-        if not item or not column:
+        """Handle cell editing on double-click"""
+        item = self.tree.identify('item', event.x, event.y)
+        column = self.tree.identify('column', event.x, event.y)
+        
+        if not item or not column or not column.startswith('#'):
             return
+            
+        # Get column name from index
         col_idx = int(column.replace('#', '')) - 1
         col_name = self.df.columns[col_idx]
+        
+        # Don't edit checkbox column
+        if col_name == 'Select':
+            return
+            
+        # Create and position the edit entry
         x, y, width, height = self.tree.bbox(item, column)
         entry = tk.Entry(self.tree, width=20)
-        entry.insert(0, self.tree.item(item, 'values')[col_idx])
-        entry.place(x=x, y=y + 2, width=width, height=height - 4)
-        entry.focus()
-        def on_focus_out(event):
+        entry.insert(0, self.tree.item(item)['values'][col_idx])
+        entry.select_range(0, tk.END)
+        
+        def on_edit_done(event=None):
+            """Complete the edit and update data"""
             new_value = entry.get()
-            self.df.at[int(item), col_name] = new_value
-            self.original_df = self.df.copy()
-            self.render_table()
-        entry.bind("<Return>", lambda e: on_focus_out(e))
-        entry.bind("<FocusOut>", on_focus_out)
+            row_idx = int(item)  # Get numerical index
+            
+            # Update DataFrame
+            self.df.at[row_idx, col_name] = new_value
+            
+            # Update tree
+            values = list(self.tree.item(item)['values'])
+            values[col_idx] = new_value
+            self.tree.item(item, values=values)
+            
+            entry.destroy()
+            
+            # Update summaries if needed
+            if col_name in ["Estimated internal", "Estimated external"]:
+                self.update_sum_labels()
+                self.update_role_summary()
+                
+        entry.place(x=x, y=y, width=width, height=height)
+        entry.focus_set()
+        
+        # Bind events
+        entry.bind("<Return>", on_edit_done)
+        entry.bind("<Escape>", lambda e: entry.destroy())
+        entry.bind("<FocusOut>", on_edit_done)
 
     def add_row(self):
         required_fields = ["Stick-Built", "Module", "Department", "Activities"]

@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Python App",
+			"type": "shell",
+			"command": "python Fabsi_List_of_Service.py",
+			"group": "test"
+		}
+	]
+}
