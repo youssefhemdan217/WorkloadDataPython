@@ -53,17 +53,17 @@ or keep it in same page but handle its ui and avoid any ui interuption between f
 Task Five : Set Services Grid Ui:
 --------------------------------
 
-1- Estimated internal and external without hours
+1- Estimated internal and external without hours , so remove hours world from table header row. done
 
-2- check functionality of summation of estimated internal and external to work
+2- check functionality of summation of estimated internal and external to work done
 
-3- keep filter after adding new record
+3- keep filter after adding new record done
 
-4- Add a new column on left side to create an ID counter column just to identify the Qty of activities in total.
+4- Add a new column on left side to create an ID counter column just to identify the Qty of activities in total. done
 
-5- Add a new column on left side with check box to select the activity row.
+5- Add a new column on left side before id with check box to select multi rows to do same action on them. done
 
-6- enhance filter ui, get new ui idea to filter data.
+6- enhance filter ui, get new ui idea to filter data. done
 -------------------------------------------------------------------------------------------
 
 
