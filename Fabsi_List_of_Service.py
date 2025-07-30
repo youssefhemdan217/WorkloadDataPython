@@ -148,6 +148,40 @@ class ExcelActivityApp:
         self.edit_popup = None
 
     def setup_ui(self):
+        # Create header frame
+        header_frame = tk.Frame(self.root, bg='white', height=100)
+        header_frame.pack(fill='x', padx=10, pady=(5, 10))
+        header_frame.pack_propagate(False)
+
+        # Left logo placeholder
+        left_logo_frame = tk.Frame(header_frame, width=100, height=80, bg='white')
+        left_logo_frame.pack(side='left', padx=20)
+        left_logo_label = tk.Label(left_logo_frame, text="Logo 1", bg='white')  # Replace with actual logo
+        left_logo_label.pack(expand=True)
+
+        # Title in center
+        title_frame = tk.Frame(header_frame, bg='white')
+        title_frame.pack(side='left', expand=True)
+        title_label = tk.Label(
+            title_frame, 
+            text="FABSI - List of Service",
+            font=("Arial", 24, "bold"),
+            bg='white',
+            fg='#1976D2'  # Professional blue color
+        )
+        title_label.pack(expand=True)
+
+        # Right logo placeholder
+        right_logo_frame = tk.Frame(header_frame, width=100, height=80, bg='white')
+        right_logo_frame.pack(side='right', padx=20)
+        right_logo_label = tk.Label(right_logo_frame, text="Logo 2", bg='white')  # Replace with actual logo
+        right_logo_label.pack(expand=True)
+
+        # Add a separator
+        separator = ttk.Separator(self.root, orient='horizontal')
+        separator.pack(fill='x', padx=10, pady=(0, 5))
+
+        # Main content area
         main_top = tk.Frame(self.root)
         main_top.pack(fill='x', padx=10, pady=2)
 
@@ -692,7 +726,7 @@ class ExcelActivityApp:
             "Professional Role": 130  # Reduced from 250
         }
         
-        header_height = 60
+        header_height = 40  # Reduced from 60 to 40
         header_frame = tk.Frame(self.scrollable_frame, height=header_height, bg="#D9D9D9", relief='groove', bd=1)
         header_frame.pack(fill='x', pady=(0,2))
         header_frame.pack_propagate(False)
@@ -718,7 +752,7 @@ class ExcelActivityApp:
             lbl = tk.Label(
                 header_text_frame,
                 text=txt,
-                font=('Arial', 8, 'bold'),
+                font=('Arial', 7, 'bold'),  # Reduced font size
                 justify='center',
                 anchor='center',
                 bg='#D9D9D9',
@@ -756,7 +790,7 @@ class ExcelActivityApp:
                 cmb = ttk.Combobox(
                     cell_frame, textvariable=filter_var, width=max(6, int(width/10)),
                     values=values, state="readonly", font=('Arial', 7))
-                cmb.pack(fill='x', padx=2, pady=(0,2))
+                cmb.pack(fill='x', padx=2, pady=(0,1))  # Reduced bottom padding
                 cmb.bind("<<ComboboxSelected>>", self.apply_dropdown_filters)
                 self.header_labels.append((lbl, cmb))
             
