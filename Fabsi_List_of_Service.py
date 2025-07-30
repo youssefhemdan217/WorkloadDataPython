@@ -205,16 +205,52 @@ class ExcelActivityApp:
         self.entry_frame.pack_propagate(False)
         self.entry_frame.pack(side='left', padx=10, pady=5, anchor='nw')
 
-        # Button frame with clear filters option
+        # Button frame with all options
         button_frame = tk.Frame(self.root)
         button_frame.pack(fill='x', padx=15, pady=(5, 5))
-        tk.Button(button_frame, text="Professional Role Summary", command=self.open_role_summary_modal, bg="#1976D2", fg="white").pack(side='left', padx=(0, 10))
-        tk.Button(button_frame, text="🔄 Clear All Filters", command=self.reset_filters, bg="#FF9800", fg="white").pack(side='left', padx=(0, 10))
-        tk.Button(button_frame, text="🗑️ Delete Selected", command=self.delete_selected, bg="#F44336", fg="white").pack(side='left', padx=(0, 10))
-        tk.Button(button_frame, text="✅ Select All", command=self.select_all_rows, bg="#9C27B0", fg="white").pack(side='left', padx=(0, 10))
-        tk.Button(button_frame, text="❌ Deselect All", command=self.deselect_all_rows, bg="#607D8B", fg="white").pack(side='left', padx=(0, 10))
-        tk.Button(button_frame, text="Agregar Actividad", command=self.add_row, bg="#388E3C", fg="white").pack(side='right')
-        tk.Button(button_frame, text="Open File", command=self.open_file, bg="#0288D1", fg="white").pack(side='right', padx=(0, 10))
+        
+        # Left side buttons
+        tk.Button(button_frame, text="Professional Role Summary", 
+                 command=self.open_role_summary_modal, 
+                 bg="#1976D2", fg="white").pack(side='left', padx=(0, 10))
+        tk.Button(button_frame, text="🔄 Clear All Filters", 
+                 command=self.reset_filters, 
+                 bg="#FF9800", fg="white").pack(side='left', padx=(0, 10))
+        tk.Button(button_frame, text="🗑️ Delete Selected", 
+                 command=self.delete_selected, 
+                 bg="#F44336", fg="white").pack(side='left', padx=(0, 10))
+        tk.Button(button_frame, text="✅ Select All", 
+                 command=self.select_all_rows, 
+                 bg="#9C27B0", fg="white").pack(side='left', padx=(0, 10))
+        tk.Button(button_frame, text="❌ Deselect All", 
+                 command=self.deselect_all_rows, 
+                 bg="#607D8B", fg="white").pack(side='left', padx=(0, 10))
+        
+        # Export buttons
+        export_frame = tk.Frame(button_frame, bg='#E3F2FD', bd=1, relief='groove')
+        export_frame.pack(side='left', padx=10)
+        
+        tk.Label(export_frame, text="Export Data:", 
+                bg='#E3F2FD', fg='#1976D2', 
+                font=('Arial', 9, 'bold')).pack(side='left', padx=5)
+        
+        tk.Button(export_frame, text="📊 Excel", 
+                 command=self.save_to_excel,
+                 bg="#217346", fg="white",  # Excel green color
+                 width=8).pack(side='left', padx=5, pady=2)
+        
+        tk.Button(export_frame, text="📄 PDF",
+                 command=self.save_to_pdf,
+                 bg="#DB4437", fg="white",  # PDF red color
+                 width=8).pack(side='left', padx=5, pady=2)
+        
+        # Right side buttons
+        tk.Button(button_frame, text="Agregar Actividad", 
+                 command=self.add_row, 
+                 bg="#388E3C", fg="white").pack(side='right')
+        tk.Button(button_frame, text="Open File", 
+                 command=self.open_file, 
+                 bg="#0288D1", fg="white").pack(side='right', padx=(0, 10))
 
         # Remove the always-visible small table from the main UI
         # self.role_summary_frame = tk.Frame(summary_right, bd=1, relief='solid')
@@ -1590,34 +1626,130 @@ class ExcelActivityApp:
         messagebox.showinfo("Guardado", f"Archivo guardado:\n{path}")
 
     def save_to_pdf(self):
+        """Export table data to a well-formatted PDF file"""
         if self.df.empty:
             messagebox.showerror("Error", "No selected data to save.")
             return
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
-        from reportlab.lib.pagesizes import A4, landscape
-        from reportlab.lib import colors
-        path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF", "*.pdf")])
-        if not path:
-            return
-        data = [list(self.df.columns)] + self.df.values.tolist()
-        page_width = landscape(A4)[0]
-        col_width = page_width / len(self.df.columns)
-        col_widths = [col_width] * len(self.df.columns)
-        table = Table(data, colWidths=col_widths)
-        style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-            ('GRID', (0, 0), (-1, -1), 0.50, colors.black),
-        ])
-        table.setStyle(style)
-        doc = SimpleDocTemplate(path, pagesize=landscape(A4))
-        doc.build([table])
-        subprocess.Popen(['start', '', path], shell=True)
-        messagebox.showinfo("Guardado", f"Archivo PDF guardado:\n{path}")
+
+        try:
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.lib.pagesizes import A3, landscape
+            from reportlab.lib import colors
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            
+            # Ask for save location
+            path = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("PDF", "*.pdf")]
+            )
+            if not path:
+                return
+                
+            # Configure document
+            doc = SimpleDocTemplate(
+                path,
+                pagesize=landscape(A3),  # Using A3 for more space
+                rightMargin=30,
+                leftMargin=30,
+                topMargin=30,
+                bottomMargin=30
+            )
+            
+            # Styles
+            styles = getSampleStyleSheet()
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=16,
+                spaceAfter=30,
+                alignment=1  # Center alignment
+            )
+            
+            # Prepare data
+            # Filter out unwanted columns and rename them
+            export_columns = [col for col in self.df.columns if col not in ['Select', 'Document Number']]
+            df_export = self.df[export_columns].copy()
+            
+            # Convert DataFrame to list of lists for the table
+            header = [col for col in df_export.columns]  # Use column names directly
+            data = [header]
+            
+            # Convert DataFrame values to strings and handle None/NaN
+            for _, row in df_export.iterrows():
+                row_data = []
+                for value in row:
+                    if pd.isna(value):
+                        row_data.append("")
+                    else:
+                        row_data.append(str(value))
+                data.append(row_data)
+            
+            # Calculate column widths based on content
+            col_widths = []
+            for idx in range(len(header)):
+                max_width = max(
+                    len(str(row[idx])) for row in data
+                ) * 6  # 6 points per character
+                col_widths.append(min(max_width, 150))  # Cap at 150 points for better fit
+                
+            # Create table
+            table = Table(data, colWidths=col_widths, repeatRows=1)
+            
+            # Table style
+            table_style = TableStyle([
+                # Header style
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#D9D9D9')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('TOPPADDING', (0, 0), (-1, 0), 12),
+                
+                # Cell style
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+                ('TOPPADDING', (0, 1), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                
+                # Text alignment
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ])
+            
+            # Alternate row colors
+            for row in range(1, len(data)):
+                if row % 2 == 0:
+                    table_style.add('BACKGROUND', (0, row), (-1, row), colors.HexColor('#F8F8F8'))
+                else:
+                    table_style.add('BACKGROUND', (0, row), (-1, row), colors.white)
+            
+            table.setStyle(table_style)
+            
+            # Build document
+            elements = []
+            
+            # Add title
+            title = Paragraph(f"FABSI - List of Service: {self.current_project}", title_style)
+            elements.append(title)
+            elements.append(Spacer(1, 20))  # Add some space after title
+            
+            # Add table
+            elements.append(table)
+            
+            # Generate PDF
+            doc.build(elements)
+            
+            # Open the generated PDF
+            subprocess.Popen(['start', '', path], shell=True)
+            messagebox.showinfo("Success", f"PDF file saved successfully:\n{path}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to create PDF: {str(e)}")
+            logging.error(f"PDF creation error: {str(e)}")
+            logging.error(traceback.format_exc())
 
 if __name__ == "__main__":
     root = tk.Tk()
