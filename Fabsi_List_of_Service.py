@@ -867,14 +867,38 @@ class ExcelActivityApp:
                 # Create field
                 width = field_widths.get(col, 200)  # Default width if not specified
                 
-                if col in self.foreign_key_options:
+                if col in self.foreign_key_options and col != "Activities":
+                    # Use dropdown for all foreign key fields except Activities
                     options = self.foreign_key_options[col]
                     widget = ctk.CTkComboBox(self.entry_frame, width=width, state="readonly",
                                            font=ctk.CTkFont(family="Arial", size=11))
                     widget.configure(values=[o['name'] for o in options])
                     self.entries[col] = widget
                     widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                elif col == "Activities":
+                    # Special searchable combobox for Activities
+                    widget = ctk.CTkComboBox(self.entry_frame, width=width, state="normal",
+                                           font=ctk.CTkFont(family="Arial", size=11))
+                    # Get existing activities from foreign key options if available
+                    if col in self.foreign_key_options:
+                        activity_options = [o['name'] for o in self.foreign_key_options[col]]
+                        widget.configure(values=activity_options)
+                    else:
+                        widget.configure(values=[])
+                    
+                    # Set combo box to start empty
+                    widget.set("")
+                    
+                    # Bind key release event for real-time search
+                    def on_activities_key_release(event, combo_widget=widget):
+                        self.filter_activities_dropdown(combo_widget)
+                    
+                    widget.bind('<KeyRelease>', on_activities_key_release)
+                    
+                    self.entries[col] = widget
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
                 elif col in ["Department", "Estimated internal", "Estimated external", "Start date", "Due date"]:
+                    # Use entry field for these columns
                     widget = ctk.CTkEntry(self.entry_frame, width=width,
                                         font=ctk.CTkFont(family="Arial", size=11))
                     if col == "Department":
@@ -900,6 +924,32 @@ class ExcelActivityApp:
             self.entries["Activities"]['values'] = matches if matches else all_activities
         else:
             self.entries["Activities"]['values'] = all_activities
+
+    def filter_activities_dropdown(self, combo_widget):
+        """Filter the activities dropdown based on user input"""
+        current_text = combo_widget.get().lower()
+        
+        # Get all available activities from foreign key options
+        all_activities = []
+        if "Activities" in self.foreign_key_options:
+            all_activities = [o['name'] for o in self.foreign_key_options["Activities"]]
+        
+        # Also include unique activities from current data
+        if "Activities" in self.df.columns:
+            data_activities = self.df["Activities"].dropna().unique().tolist()
+            # Combine and remove duplicates
+            all_activities = list(set(all_activities + data_activities))
+        
+        if current_text:
+            # Filter activities that contain the typed text
+            filtered_activities = [
+                activity for activity in all_activities 
+                if current_text in activity.lower()
+            ]
+            combo_widget.configure(values=filtered_activities)
+        else:
+            # Show all activities when no text is entered
+            combo_widget.configure(values=all_activities)
 
     def render_table(self):
         """Render the main table with data"""
