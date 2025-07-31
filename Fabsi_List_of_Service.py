@@ -891,10 +891,18 @@ class ExcelActivityApp:
             "Start date": "Start Date", "Due date": "Due Date"
         }
         
-        # Configure columns with improved readability
+        # Configure columns with improved readability and Excel-like filtering
         for col in self.df.columns:
-            self.tree.heading(col, text=header_map.get(col, col),
-                            command=lambda c=col: self.sort_column(c))
+            # Add filter arrow only for non-Select and non-ID columns
+            if col not in ["Select", "ID"]:
+                header_text = f"{header_map.get(col, col)} ▼"
+                # Use functools.partial to avoid lambda closure issues
+                from functools import partial
+                self.tree.heading(col, text=header_text, command=partial(self.show_filter_menu, col))
+            else:
+                header_text = header_map.get(col, col)
+                self.tree.heading(col, text=header_text)
+            
             width = column_widths.get(col, 100)
             anchor = 'w' if col in ["Activities", "Title", "Notes", "Technical Unit", 
                                   "Assigned to", "Professional Role", "Department"] else 'center'
@@ -1245,6 +1253,343 @@ class ExcelActivityApp:
         # Row styling
         self.tree.tag_configure('oddrow', background='white')
         self.tree.tag_configure('evenrow', background='#F8F8F8')
+
+    def show_filter_menu(self, column):
+        """Show Excel-like filter menu for the selected column"""
+        print(f"Opening filter for column: {column}")  # Debug
+        
+        # Close any existing filter window
+        if hasattr(self, 'filter_window') and self.filter_window:
+            try:
+                self.filter_window.destroy()
+            except:
+                pass
+        
+        # Create new filter window with proper layout
+        self.filter_window = tk.Toplevel(self.root)
+        self.filter_window.title(f"Filter - {column}")
+        self.filter_window.geometry("350x550")  # Increased size for better visibility
+        self.filter_window.resizable(False, False)
+        self.filter_window.transient(self.root)
+        self.filter_window.grab_set()
+        
+        # Position the window near the mouse cursor
+        try:
+            x = self.root.winfo_pointerx() - 175
+            y = self.root.winfo_pointery() - 50
+            self.filter_window.geometry(f"350x550+{x}+{y}")
+        except:
+            pass
+        
+        # Main container with fixed structure
+        main_frame = tk.Frame(self.filter_window, bg='white')
+        main_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        # Title
+        title_label = tk.Label(main_frame, text=f"Filter: {column}", 
+                              font=('Arial', 12, 'bold'), bg='white')
+        title_label.pack(pady=(0, 10))
+        
+        # Sort section
+        sort_frame = tk.LabelFrame(main_frame, text="Sort Options", bg='white', font=('Arial', 9, 'bold'))
+        sort_frame.pack(fill='x', pady=(0, 10))
+        
+        # Sort buttons
+        sort_btn_frame = tk.Frame(sort_frame, bg='white')
+        sort_btn_frame.pack(fill='x', padx=5, pady=5)
+        
+        tk.Button(sort_btn_frame, text="↑ Sort A to Z", 
+                 command=lambda: self.apply_sort(column, True),
+                 bg='#E8F4FD', relief='flat', font=('Arial', 9),
+                 width=15, pady=5).pack(side='left', padx=(0, 5))
+        
+        tk.Button(sort_btn_frame, text="↓ Sort Z to A",
+                 command=lambda: self.apply_sort(column, False), 
+                 bg='#E8F4FD', relief='flat', font=('Arial', 9),
+                 width=15, pady=5).pack(side='left')
+        
+        # Filter section with FIXED height to ensure buttons show
+        filter_frame = tk.LabelFrame(main_frame, text="Filter Values", bg='white', 
+                                   font=('Arial', 9, 'bold'), height=320)
+        filter_frame.pack(fill='x', pady=(0, 10))
+        filter_frame.pack_propagate(False)  # Prevent expansion
+        
+        # Search box
+        search_frame = tk.Frame(filter_frame, bg='white')
+        search_frame.pack(fill='x', padx=5, pady=5)
+        
+        tk.Label(search_frame, text="Search:", bg='white', font=('Arial', 9)).pack(anchor='w')
+        
+        self.search_var = tk.StringVar()
+        search_entry = tk.Entry(search_frame, textvariable=self.search_var, font=('Arial', 9))
+        search_entry.pack(fill='x', pady=2)
+        
+        # Select All checkbox
+        select_all_frame = tk.Frame(filter_frame, bg='white')
+        select_all_frame.pack(fill='x', padx=5, pady=2)
+        
+        self.select_all_var = tk.BooleanVar(value=True)
+        select_all_cb = tk.Checkbutton(select_all_frame, text="Select All", 
+                                      variable=self.select_all_var, bg='white',
+                                      font=('Arial', 9, 'bold'),
+                                      command=self.toggle_all_checkboxes)
+        select_all_cb.pack(anchor='w')
+        
+        # Values list with scrollbar - FIXED HEIGHT for proper scrolling
+        list_frame = tk.Frame(filter_frame, bg='white', height=220)
+        list_frame.pack(fill='x', padx=5, pady=5)
+        list_frame.pack_propagate(False)  # Prevent expansion
+        
+        # Create scrollable frame for checkboxes
+        canvas = tk.Canvas(list_frame, bg='white', highlightthickness=0)
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg='white')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Get distinct values for the column
+        if hasattr(self, 'original_df') and column in self.original_df.columns:
+            # Use original data to get all possible values
+            all_values = self.original_df[column].dropna().astype(str).unique().tolist()
+        elif column in self.df.columns:
+            # Fallback to current data
+            all_values = self.df[column].dropna().astype(str).unique().tolist()
+        else:
+            all_values = []
+        
+        # Sort values naturally
+        def natural_sort_key(val):
+            try:
+                return (0, float(val))  # Numbers first
+            except (ValueError, TypeError):
+                return (1, str(val).lower())  # Then text
+        
+        all_values = sorted(all_values, key=natural_sort_key)
+        self.filter_values = all_values
+        
+        # Store checkbox variables
+        self.filter_checkboxes = {}
+        self.current_filter_column = column
+        
+        # Create checkboxes for each value
+        for value in all_values:
+            var = tk.BooleanVar(value=True)
+            self.filter_checkboxes[value] = var
+            
+            cb = tk.Checkbutton(scrollable_frame, text=f" {value}", 
+                              variable=var, bg='white', anchor='w',
+                              font=('Arial', 9))
+            cb.pack(fill='x', anchor='w', pady=1)
+        
+        # Pack canvas and scrollbar properly
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Search functionality
+        def update_search(*args):
+            search_text = self.search_var.get().lower()
+            for widget in scrollable_frame.winfo_children():
+                if isinstance(widget, tk.Checkbutton):
+                    text = widget.cget('text').lower()
+                    if search_text in text:
+                        widget.pack(fill='x', anchor='w', pady=1)
+                    else:
+                        widget.pack_forget()
+            # Update scrollregion after search
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        
+        self.search_var.trace('w', update_search)
+        
+        # BUTTONS SECTION - Always visible at the bottom of main_frame
+        separator = tk.Frame(main_frame, height=2, bg='#CCCCCC')
+        separator.pack(fill='x', pady=(10, 5))
+        
+        # Button frame - FIXED at bottom
+        btn_frame = tk.Frame(main_frame, bg='#F0F0F0', relief='raised', bd=2, height=80)
+        btn_frame.pack(fill='x', side='bottom')
+        btn_frame.pack_propagate(False)  # Prevent resizing
+        
+        # Button container for centered layout
+        btn_container = tk.Frame(btn_frame, bg='#F0F0F0')
+        btn_container.pack(expand=True, pady=15)
+        
+        # Buttons with improved styling and clear visibility
+        apply_btn = tk.Button(btn_container, text="✅ Apply Filter", 
+                             command=self.apply_filter,
+                             bg='#4CAF50', fg='white', font=('Arial', 10, 'bold'),
+                             width=15, height=2, relief='raised', bd=3,
+                             activebackground='#45A049')
+        apply_btn.pack(side='left', padx=8)
+        
+        clear_btn = tk.Button(btn_container, text="🔄 Clear Filter",
+                             command=lambda: self.clear_filter(column),
+                             bg='#FF9800', fg='white', font=('Arial', 10, 'bold'),
+                             width=15, height=2, relief='raised', bd=3,
+                             activebackground='#F57C00')
+        clear_btn.pack(side='left', padx=8)
+        
+        cancel_btn = tk.Button(btn_container, text="❌ Cancel",
+                              command=self.filter_window.destroy,
+                              bg='#F44336', fg='white', font=('Arial', 10, 'bold'),
+                              width=12, height=2, relief='raised', bd=3,
+                              activebackground='#D32F2F')
+        cancel_btn.pack(side='left', padx=8)
+        
+        # Add mouse wheel scrolling support
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        # Bind mousewheel to canvas and window
+        canvas.bind("<MouseWheel>", on_mousewheel)
+        self.filter_window.bind("<MouseWheel>", on_mousewheel)
+        
+        # Focus on search entry for immediate typing
+        search_entry.focus()
+    
+    def toggle_all_checkboxes(self):
+        """Toggle all filter checkboxes based on Select All state"""
+        if hasattr(self, 'filter_checkboxes'):
+            select_all = self.select_all_var.get()
+            for var in self.filter_checkboxes.values():
+                var.set(select_all)
+    
+    def apply_sort(self, column, ascending):
+        """Apply sorting to the column"""
+        try:
+            if column in self.df.columns:
+                # Convert to appropriate type for sorting
+                if self.df[column].dtype == 'object':
+                    # Try to convert to numeric if possible, otherwise sort as string
+                    try:
+                        sorted_df = self.df.iloc[self.df[column].astype(float).argsort()]
+                        if not ascending:
+                            sorted_df = sorted_df.iloc[::-1]
+                    except:
+                        sorted_df = self.df.sort_values(by=column, ascending=ascending, 
+                                                       key=lambda x: x.astype(str).str.lower())
+                else:
+                    sorted_df = self.df.sort_values(by=column, ascending=ascending)
+                
+                self.df = sorted_df.reset_index(drop=True)
+                # Update ID column after sorting
+                if 'ID' in self.df.columns:
+                    self.df['ID'] = range(1, len(self.df) + 1)
+                
+                self.render_table()
+                self.update_sum_labels()
+                self.update_role_summary()
+                
+                # Close filter window
+                if hasattr(self, 'filter_window') and self.filter_window:
+                    self.filter_window.destroy()
+                    
+                print(f"Sorted by {column}, ascending={ascending}")
+        except Exception as e:
+            print(f"Error sorting: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def apply_filter(self):
+        """Apply the selected filter values"""
+        try:
+            if not hasattr(self, 'filter_checkboxes') or not hasattr(self, 'current_filter_column'):
+                return
+            
+            column = self.current_filter_column
+            
+            # Get selected values
+            selected_values = []
+            for value, var in self.filter_checkboxes.items():
+                if var.get():
+                    selected_values.append(value)
+            
+            if not selected_values:
+                # If nothing selected, show empty dataframe
+                self.df = pd.DataFrame(columns=self.df.columns)
+            else:
+                # Filter the original data
+                if hasattr(self, 'original_df') and column in self.original_df.columns:
+                    # Start with original data (without Select and ID columns)
+                    filtered_df = self.original_df[self.original_df[column].astype(str).isin(selected_values)].copy()
+                    
+                    # Add Select and ID columns
+                    if not filtered_df.empty:
+                        filtered_df.insert(0, 'Select', False)
+                        filtered_df.insert(1, 'ID', range(1, len(filtered_df) + 1))
+                    else:
+                        # Create empty dataframe with all columns
+                        filtered_df = pd.DataFrame(columns=self.df.columns)
+                    
+                    self.df = filtered_df
+                else:
+                    # Fallback to current dataframe
+                    self.df = self.df[self.df[column].astype(str).isin(selected_values)].copy()
+                    if 'ID' in self.df.columns and not self.df.empty:
+                        self.df['ID'] = range(1, len(self.df) + 1)
+            
+            # Clear selections since row indices have changed
+            self.selected_rows.clear()
+            
+            # Update display
+            self.render_table()
+            self.update_sum_labels()
+            self.update_role_summary()
+            
+            # Close filter window
+            if hasattr(self, 'filter_window') and self.filter_window:
+                self.filter_window.destroy()
+                
+            print(f"Applied filter to {column}: {len(selected_values)} values selected")
+            
+        except Exception as e:
+            print(f"Error applying filter: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def clear_filter(self, column):
+        """Clear filter and restore original data"""
+        try:
+            # Restore original data
+            if hasattr(self, 'original_df'):
+                # Recreate the full dataframe with Select and ID columns
+                display_cols_without_select_id = [col for col in self.df.columns if col not in ['Select', 'ID']]
+                available_cols = [col for col in display_cols_without_select_id if col in self.original_df.columns]
+                
+                restored_df = self.original_df[available_cols].copy()
+                
+                # Add Select and ID columns
+                if not restored_df.empty:
+                    restored_df.insert(0, 'Select', False)
+                    restored_df.insert(1, 'ID', range(1, len(restored_df) + 1))
+                else:
+                    restored_df = pd.DataFrame(columns=self.df.columns)
+                
+                self.df = restored_df
+            
+            # Clear selections
+            self.selected_rows.clear()
+            
+            # Update display
+            self.render_table()
+            self.update_sum_labels()
+            self.update_role_summary()
+            
+            # Close filter window
+            if hasattr(self, 'filter_window') and self.filter_window:
+                self.filter_window.destroy()
+                
+            print(f"Cleared filter for {column}")
+            
+        except Exception as e:
+            print(f"Error clearing filter: {e}")
+            import traceback
+            traceback.print_exc()
 
     def create_summation_row(self):
         """Create a fixed summary row below the table"""
