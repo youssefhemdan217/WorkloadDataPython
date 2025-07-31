@@ -263,12 +263,16 @@ class ExcelActivityApp:
 
         # Create the main table frame (always present)
         self.table_frame = tk.Frame(self.root)
-        self.table_frame.pack(fill='both', expand=True, padx=15, pady=(5, 10))
+        self.table_frame.pack(fill='both', expand=True, padx=15, pady=(5, 0))
 
         self.render_table()
         self.build_entry_fields()
+        
         self.update_sum_labels()
         self.update_role_summary()
+
+        # Start auto-updating totals every 400ms
+        self.auto_update_totals()
 
         # Bottom frame with buttons (outside of scrollable area)
         bottom_frame = tk.Frame(self.root)
@@ -479,10 +483,8 @@ class ExcelActivityApp:
         self.root.after(400, self.auto_update_totals)
 
     def update_sum_labels(self):
-        if not hasattr(self, 'total_label_internal') or not hasattr(self, 'total_label_external'):
-            return
-        if not self.total_label_internal or not self.total_label_external:
-            return
+        # No longer need the separate labels since we're using table row
+        # But keep the calculation for debugging and potential future use
         
         try:
             df = self.df
@@ -506,13 +508,41 @@ class ExcelActivityApp:
             total_internal = 0
             total_external = 0
         
-        # Update labels with formatted values
+        # Update the summation row in the table if it exists
+        self.update_summation_row_in_table(total_internal, total_external)
+        
+        print(f"Updated totals: Internal={total_internal:.2f}, External={total_external:.2f}")  # Debug
+
+    def update_summation_row_in_table(self, total_internal, total_external):
+        """Update the summation row values in the table"""
+        if not hasattr(self, 'tree') or not self.tree:
+            return
+            
         try:
-            self.total_label_internal.config(text=f"{total_internal:,.2f}")
-            self.total_label_external.config(text=f"{total_external:,.2f}")
-            print(f"Updated totals: Internal={total_internal:.2f}, External={total_external:.2f}")  # Debug
+            # Check if the summation row exists
+            if self.tree.exists('TOTALS_ROW'):
+                # Update the existing summation row
+                row_values = []
+                for col in self.df.columns:
+                    if col == "Select":
+                        row_values.append("📊")
+                    elif col == "ID":
+                        row_values.append("TOTAL")
+                    elif col == "Activities":
+                        row_values.append("📈 TOTAL PROJECT HOURS")
+                    elif col == "Estimated internal":
+                        row_values.append(f"{total_internal:,.2f}")
+                    elif col == "Estimated external":
+                        row_values.append(f"{total_external:,.2f}")
+                    elif col in ["Department"]:
+                        row_values.append("ALL")
+                    else:
+                        row_values.append("")
+                
+                # Update the row values
+                self.tree.item('TOTALS_ROW', values=row_values)
         except Exception as e:
-            print(f"Error updating labels: {e}")
+            print(f"Error updating summation row: {e}")
 
     def update_role_summary(self):
         """Update the role summary based on the currently displayed/filtered data"""
@@ -843,7 +873,7 @@ class ExcelActivityApp:
         tree_frame.pack(fill='both', expand=True)
         
         # Create Treeview
-        self.tree = ttk.Treeview(tree_frame, columns=list(self.df.columns), show='headings', height=20)
+        self.tree = ttk.Treeview(tree_frame, columns=list(self.df.columns), show='headings', height=15)
         
         # Create scrollbars
         vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
@@ -930,16 +960,59 @@ class ExcelActivityApp:
                 row_values[checkbox_idx] = '☑' if i in self.selected_rows else '☐'
             self.tree.insert('', 'end', iid=str(i), values=row_values, tags=(tag,))
         
+        # ADD SUMMATION ROW as the last row of the table
+        self.add_summation_row_to_table()
+        
         # Configure row colors
         self.tree.tag_configure('oddrow', background='white')
         self.tree.tag_configure('evenrow', background='#F8F8F8')
+        # Configure summation row with bright colors
+        self.tree.tag_configure('total_row', background='#FFD700', foreground='#000000', font=('Arial', 12, 'bold'))
         
         # Bind events
         self.tree.bind("<Double-1>", self.edit_cell)
         self.tree.bind("<Button-1>", self.on_checkbox_click)
         
-        # Create summation row
-        self.create_summation_row()
+        # Update the totals after rendering the table
+        self.update_sum_labels()
+
+    def add_summation_row_to_table(self):
+        """Add a summation row as the last row of the table"""
+        # Calculate totals
+        total_internal = 0
+        total_external = 0
+        
+        try:
+            if "Estimated internal" in self.df.columns and len(self.df) > 0:
+                internal_series = pd.to_numeric(self.df["Estimated internal"], errors='coerce')
+                total_internal = internal_series.dropna().sum()
+            
+            if "Estimated external" in self.df.columns and len(self.df) > 0:
+                external_series = pd.to_numeric(self.df["Estimated external"], errors='coerce')
+                total_external = external_series.dropna().sum()
+        except Exception as e:
+            print(f"Error calculating totals for summation row: {e}")
+        
+        # Create summation row values
+        row_values = []
+        for col in self.df.columns:
+            if col == "Select":
+                row_values.append("📊")  # Special icon for totals row
+            elif col == "ID":
+                row_values.append("TOTAL")
+            elif col == "Activities":
+                row_values.append("📈 TOTAL PROJECT HOURS")
+            elif col == "Estimated internal":
+                row_values.append(f"{total_internal:,.2f}")
+            elif col == "Estimated external":
+                row_values.append(f"{total_external:,.2f}")
+            elif col in ["Department"]:
+                row_values.append("ALL")
+            else:
+                row_values.append("")  # Empty for other columns
+        
+        # Insert the summation row with special styling
+        self.tree.insert('', 'end', iid='TOTALS_ROW', values=row_values, tags=('total_row',))
 
     def get_visible_columns(self):
         """Get list of columns to display (excluding Document Number)"""
@@ -1592,50 +1665,58 @@ class ExcelActivityApp:
             traceback.print_exc()
 
     def create_summation_row(self):
-        """Create a fixed summary row below the table"""
-        # Create a frame for totals
-        totals_frame = ttk.Frame(self.scrollable_frame)
-        totals_frame.pack(fill='x', pady=(5,0))
+        """Create a fixed summary row below the table in dedicated frame"""
+        # Clear any existing widgets in the totals frame
+        for widget in self.totals_display_frame.winfo_children():
+            widget.destroy()
         
-        # Create styled containers for totals
-        internal_frame = ttk.Frame(totals_frame, style='Summary.TFrame')
-        internal_frame.pack(side='left', padx=10)
+        # Create a HUGE IMPOSSIBLE TO MISS title
+        title_label = tk.Label(self.totals_display_frame, 
+                              text="� ATTENTION: TOTAL HOURS SUMMARY 🚨", 
+                              font=('Arial', 20, 'bold'),
+                              bg='#FF0000',
+                              fg='white')
+        title_label.pack(pady=(15, 20))
         
-        external_frame = ttk.Frame(totals_frame, style='Summary.TFrame')
-        external_frame.pack(side='left', padx=10)
+        # Create styled containers for totals with MAXIMUM visibility
+        totals_container = tk.Frame(self.totals_display_frame, bg='#FF0000')
+        totals_container.pack(expand=True, fill='both', padx=30)
         
-        # Configure styles
-        style = ttk.Style()
-        style.configure('Summary.TFrame', background='#F0F0F0')
-        style.configure('SummaryLabel.TLabel', 
-                       font=('Arial', 9, 'bold'),
-                       background='#F0F0F0',
-                       padding=(5, 2))
-        style.configure('SummaryValue.TLabel',
-                       font=('Arial', 10, 'bold'),
-                       foreground='#2E7D32',
-                       background='#F0F0F0',
-                       padding=(5, 2))
+        # Internal total box - GIGANTIC and impossible to miss
+        internal_frame = tk.Frame(totals_container, bg='#00FF00', relief='raised', bd=10, height=80)
+        internal_frame.pack(side='left', padx=30, pady=15, expand=True, fill='both')
         
-        # Internal total
-        ttk.Label(internal_frame, 
-                  text="Total Internal Hours:", 
-                  style='SummaryLabel.TLabel').pack(side='left')
+        internal_label = tk.Label(internal_frame, 
+                                text="💼 TOTAL INTERNAL HOURS:", 
+                                font=('Arial', 16, 'bold'),
+                                bg='#00FF00',
+                                fg='black')
+        internal_label.pack(side='left', padx=25, pady=20)
         
-        self.total_label_internal = ttk.Label(internal_frame,
-                                            text="0.00",
-                                            style='SummaryValue.TLabel')
-        self.total_label_internal.pack(side='left', padx=(5,0))
+        self.total_label_internal = tk.Label(internal_frame,
+                                           text="0.00",
+                                           font=('Arial', 24, 'bold'),
+                                           bg='#00FF00',
+                                           fg='red')
+        self.total_label_internal.pack(side='left', padx=(15, 25), pady=20)
         
-        # External total
-        ttk.Label(external_frame,
-                  text="Total External Hours:",
-                  style='SummaryLabel.TLabel').pack(side='left')
+        # External total box - GIGANTIC and impossible to miss
+        external_frame = tk.Frame(totals_container, bg='#0000FF', relief='raised', bd=10, height=80)
+        external_frame.pack(side='left', padx=30, pady=15, expand=True, fill='both')
         
-        self.total_label_external = ttk.Label(external_frame,
-                                            text="0.00", 
-                                            style='SummaryValue.TLabel')
-        self.total_label_external.pack(side='left', padx=(5,0))
+        external_label = tk.Label(external_frame,
+                                text="🏢 TOTAL EXTERNAL HOURS:",
+                                font=('Arial', 16, 'bold'),
+                                bg='#0000FF',
+                                fg='white')
+        external_label.pack(side='left', padx=25, pady=20)
+        
+        self.total_label_external = tk.Label(external_frame,
+                                           text="0.00", 
+                                           font=('Arial', 24, 'bold'),
+                                           bg='#0000FF',
+                                           fg='yellow')
+        self.total_label_external.pack(side='left', padx=(15, 25), pady=20)
 
     def on_checkbox_click(self, event):
         """Handle checkbox column clicks for row selection"""
