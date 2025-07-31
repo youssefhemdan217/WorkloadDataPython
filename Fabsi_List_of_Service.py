@@ -1434,12 +1434,12 @@ class ExcelActivityApp:
                              activebackground='#F57C00')
         clear_btn.pack(side='left', padx=8)
         
-        cancel_btn = tk.Button(btn_container, text="❌ Cancel",
-                              command=self.filter_window.destroy,
-                              bg='#F44336', fg='white', font=('Arial', 10, 'bold'),
-                              width=12, height=2, relief='raised', bd=3,
-                              activebackground='#D32F2F')
-        cancel_btn.pack(side='left', padx=8)
+        # cancel_btn = tk.Button(btn_container, text="❌ Cancel",
+        #                       command=self.filter_window.destroy,
+        #                       bg='#F44336', fg='white', font=('Arial', 10, 'bold'),
+        #                       width=12, height=2, relief='raised', bd=3,
+        #                       activebackground='#D32F2F')
+        # cancel_btn.pack(side='left', padx=8)
         
         # Add mouse wheel scrolling support
         def on_mousewheel(event):
