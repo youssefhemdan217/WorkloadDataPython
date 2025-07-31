@@ -14,9 +14,32 @@ import subprocess
 import traceback
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 
-# Set customtkinter appearance
+# Set customtkinter appearance with modern theme
 ctk.set_appearance_mode("light")  # "light" or "dark"
 ctk.set_default_color_theme("blue")  # "blue", "green", "dark-blue"
+
+# Modern color palette
+COLORS = {
+    'primary': '#2563EB',          # Modern blue
+    'primary_hover': '#1D4ED8',    # Darker blue
+    'secondary': '#64748B',        # Slate gray
+    'success': '#059669',          # Modern green
+    'success_hover': '#047857',    # Darker green
+    'warning': '#D97706',          # Modern orange
+    'warning_hover': '#B45309',    # Darker orange
+    'danger': '#DC2626',           # Modern red
+    'danger_hover': '#B91C1C',     # Darker red
+    'info': '#0891B2',             # Modern cyan
+    'info_hover': '#0E7490',       # Darker cyan
+    'purple': '#7C3AED',           # Modern purple
+    'purple_hover': '#6D28D9',     # Darker purple
+    'dark': '#1F2937',             # Dark gray
+    'dark_hover': '#111827',       # Darker gray
+    'light': '#F8FAFC',            # Light background
+    'border': '#E2E8F0',           # Light border
+    'text_primary': '#1E293B',     # Primary text
+    'text_secondary': '#64748B',   # Secondary text
+}
 
 class ExcelActivityApp:
     def __init__(self, root):
@@ -24,14 +47,26 @@ class ExcelActivityApp:
         self.root.title("FABSI - List of Service")
         self.root.resizable(True, True)
         
-        # Set window size and center it
-        window_width = 1400
-        window_height = 900
+        # Set modern window styling
+        self.root.configure(bg='#F8FAFC')
+        
+        # Maximize window size to use most of the screen
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
+        
+        # Use 95% of screen size for maximum table visibility
+        window_width = int(screen_width * 0.95)
+        window_height = int(screen_height * 0.95)
+        
         x = (screen_width - window_width) // 2
         y = (screen_height - window_height) // 2
         self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+
+        # Set minimum window size
+        self.root.minsize(1400, 900)
+        
+        # Maximize window on startup
+        self.root.state('zoomed')  # Windows maximized state
 
         self.display_columns = [
             "Select", "ID", "Stick-Built", "Module", "Document Number", "Activities", "Title", "Department",
@@ -164,57 +199,184 @@ class ExcelActivityApp:
         self.role_summary_frame = None
         self.role_summary_tree = None
         self.role_summary_data = pd.DataFrame()
-        self.edit_popup = None
-        self.dark_mode = False  # Track dark mode state
+        
+        # Initialize modern UI components
+        self.status_label = None
+        self.data_summary_label = None
 
-    def toggle_dark_mode(self):
-        """Toggle between light and dark mode"""
-        self.dark_mode = not self.dark_mode
-        if self.dark_mode:
-            ctk.set_appearance_mode("dark")
+    def show_loading_indicator(self, show=True):
+        """Show or hide a modern loading indicator"""
+        if show:
+            if not hasattr(self, 'loading_frame'):
+                # Create loading overlay
+                self.loading_frame = ctk.CTkFrame(
+                    self.root,
+                    fg_color=("white", "gray20"),
+                    corner_radius=10
+                )
+                self.loading_frame.place(relx=0.5, rely=0.5, anchor='center')
+                
+                # Loading content
+                loading_content = ctk.CTkFrame(self.loading_frame, fg_color="transparent")
+                loading_content.pack(padx=30, pady=20)
+                
+                # Spinning icon (simple text animation)
+                self.loading_label = ctk.CTkLabel(
+                    loading_content,
+                    text="⏳",
+                    font=ctk.CTkFont(family="Segoe UI Emoji", size=24)
+                )
+                self.loading_label.pack(pady=(0, 10))
+                
+                # Loading text
+                ctk.CTkLabel(
+                    loading_content,
+                    text="Loading...",
+                    font=ctk.CTkFont(family="Segoe UI", size=14)
+                ).pack()
+                
+                # Start animation
+                self.animate_loading()
         else:
-            ctk.set_appearance_mode("light")
+            if hasattr(self, 'loading_frame'):
+                self.loading_frame.destroy()
+                delattr(self, 'loading_frame')
+    
+    def animate_loading(self):
+        """Animate the loading indicator"""
+        if hasattr(self, 'loading_label'):
+            current = self.loading_label.cget("text")
+            icons = ["⏳", "⌛", "🔄", "⏳"]
+            next_icon = icons[(icons.index(current) + 1) % len(icons)]
+            self.loading_label.configure(text=next_icon)
+            self.root.after(500, self.animate_loading)
+
+    def update_status(self, message, color=None):
+        """Update the status label with modern styling"""
+        if hasattr(self, 'status_label') and self.status_label:
+            if color is None:
+                color = COLORS['success']
+            self.status_label.configure(text=message, text_color=color)
+            # Auto-clear status after 3 seconds
+            self.root.after(3000, lambda: self.update_status("Ready", COLORS['success']))
+    
+    def update_data_summary(self):
+        """Update the data summary in the table header"""
+        if hasattr(self, 'data_summary_label') and self.data_summary_label:
+            total_rows = len(self.df)
+            if total_rows > 0:
+                try:
+                    internal_total = pd.to_numeric(self.df.get("Estimated internal", []), errors='coerce').sum()
+                    external_total = pd.to_numeric(self.df.get("Estimated external", []), errors='coerce').sum()
+                    summary_text = f"{total_rows} activities • {internal_total:,.0f}h internal • {external_total:,.0f}h external"
+                except:
+                    summary_text = f"{total_rows} activities loaded"
+            else:
+                summary_text = "No data loaded"
+            self.data_summary_label.configure(text=summary_text)
 
     def setup_ui(self):
-        # Create header frame - reduced height
-        header_frame = ctk.CTkFrame(self.root, height=60, corner_radius=10)
-        header_frame.pack(fill='x', padx=10, pady=(2, 5))
+        # Create compact modern header
+        header_frame = ctk.CTkFrame(
+            self.root, 
+            height=60,  # Reduced from 80
+            corner_radius=12,
+            fg_color=COLORS['primary'],
+            border_width=0
+        )
+        header_frame.pack(fill='x', padx=10, pady=(5, 5))  # Reduced padding
         header_frame.pack_propagate(False)
 
-        # Left logo placeholder - smaller size
-        left_logo_frame = ctk.CTkFrame(header_frame, width=70, height=50, corner_radius=5)
-        left_logo_frame.pack(side='left', padx=10)
-        left_logo_label = ctk.CTkLabel(left_logo_frame, text="Logo 1", font=("Arial", 8))
+        # Compact left logo
+        left_logo_frame = ctk.CTkFrame(
+            header_frame, 
+            width=60,  # Reduced from 80
+            height=40,  # Reduced from 60
+            corner_radius=8,
+            fg_color=COLORS['light'],
+            border_width=1,
+            border_color=COLORS['border']
+        )
+        left_logo_frame.pack(side='left', padx=10, pady=10)
+        left_logo_label = ctk.CTkLabel(
+            left_logo_frame, 
+            text="🏢", 
+            font=ctk.CTkFont(family="Segoe UI Emoji", size=20),  # Reduced from 24
+            text_color=COLORS['primary']
+        )
         left_logo_label.pack(expand=True)
 
-        # Title in center - smaller font
+        # Compact title section
         title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        title_frame.pack(side='left', expand=True)
+        title_frame.pack(side='left', expand=True, pady=5)
+        
+        # Main title - more compact
         title_label = ctk.CTkLabel(
             title_frame, 
             text="FABSI - List of Service",
-            font=ctk.CTkFont(family="Arial", size=20, weight="bold"),
-            text_color="#1976D2"
+            font=ctk.CTkFont(family="Segoe UI", size=22, weight="bold"),  # Reduced from 28
+            text_color="white"
         )
         title_label.pack(expand=True)
 
-        # Right logo placeholder - smaller size
-        right_logo_frame = ctk.CTkFrame(header_frame, width=70, height=50, corner_radius=5)
-        right_logo_frame.pack(side='right', padx=10)
-        right_logo_label = ctk.CTkLabel(right_logo_frame, text="Logo 2", font=("Arial", 8))
+        # Compact right logo
+        right_logo_frame = ctk.CTkFrame(
+            header_frame, 
+            width=60,  # Reduced from 80
+            height=40,  # Reduced from 60
+            corner_radius=8,
+            fg_color=COLORS['light'],
+            border_width=1,
+            border_color=COLORS['border']
+        )
+        right_logo_frame.pack(side='right', padx=10, pady=10)
+        right_logo_label = ctk.CTkLabel(
+            right_logo_frame, 
+            text="⚙️", 
+            font=ctk.CTkFont(family="Segoe UI Emoji", size=20),  # Reduced from 24
+            text_color=COLORS['primary']
+        )
         right_logo_label.pack(expand=True)
 
-        # Add a separator
-        separator_frame = ctk.CTkFrame(self.root, height=2, fg_color="#BDBDBD")
-        separator_frame.pack(fill='x', padx=10, pady=(0, 5))
+        # Modern content container
+        content_container = ctk.CTkFrame(
+            self.root, 
+            fg_color="transparent"
+        )
+        content_container.pack(fill='both', expand=True, padx=10, pady=3)  # Reduced padding
 
-        # Main content area
-        main_top = ctk.CTkFrame(self.root, fg_color="transparent")
-        main_top.pack(fill='x', padx=10, pady=2)
+        # Compact project selection section
+        project_section = ctk.CTkFrame(
+            content_container, 
+            height=50,  # Reduced from 70
+            corner_radius=8,
+            fg_color=COLORS['light'],
+            border_width=1,
+            border_color=COLORS['border']
+        )
+        project_section.pack(fill='x', pady=(0, 5))  # Reduced padding
+        project_section.pack_propagate(False)
 
-        # Project selection dropdown
-        project_label = ctk.CTkLabel(main_top, text="Select Project:", font=ctk.CTkFont(family="Arial", size=12, weight="bold"))
-        project_label.pack(side='left', padx=(0, 5))
+        # Project selection content - more compact
+        project_content = ctk.CTkFrame(project_section, fg_color="transparent")
+        project_content.pack(fill='both', expand=True, padx=15, pady=8)  # Reduced padding
+
+        # Compact project icon and label
+        project_icon_label = ctk.CTkLabel(
+            project_content, 
+            text="📋", 
+            font=ctk.CTkFont(family="Segoe UI Emoji", size=14)  # Reduced size
+        )
+        project_icon_label.pack(side='left', padx=(0, 6))
+
+        project_label = ctk.CTkLabel(
+            project_content, 
+            text="Project:", 
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),  # Simplified text
+            text_color=COLORS['text_primary']
+        )
+        project_label.pack(side='left', padx=(0, 8))
+
         # Always reload project list from DB to avoid stale cache
         import sqlalchemy
         db_path = os.path.join(os.path.dirname(__file__), 'Workload.db')
@@ -222,76 +384,281 @@ class ExcelActivityApp:
         with engine.connect() as conn:
             result = conn.execute(sqlalchemy.text('SELECT name FROM project')).fetchall()
             project_names = [row[0] for row in result]
-        self.project_combobox = ctk.CTkComboBox(main_top, values=project_names, state="readonly", width=250)
-        self.project_combobox.pack(side='left', padx=(0, 20))
+
+        self.project_combobox = ctk.CTkComboBox(
+            project_content, 
+            values=project_names, 
+            state="readonly", 
+            width=250,  # Reduced from 280
+            height=30,  # Reduced from 35
+            corner_radius=6,
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            dropdown_font=ctk.CTkFont(family="Segoe UI", size=10)
+        )
+        self.project_combobox.pack(side='left', padx=(0, 15))
         self.project_combobox.configure(command=self.on_project_selected)
 
-        # Professional, compact form frame with max width
-        self.entry_frame = ctk.CTkFrame(main_top, height=260, width=1300, corner_radius=10)
-        self.entry_frame.pack_propagate(False)
-        self.entry_frame.pack(side='left', padx=10, pady=5, anchor='nw')
+        # Compact status indicator
+        self.status_label = ctk.CTkLabel(
+            project_content,
+            text="Ready",
+            font=ctk.CTkFont(family="Segoe UI", size=10),  # Reduced size
+            text_color=COLORS['success']
+        )
+        self.status_label.pack(side='right', padx=(15, 0))
 
-        # Button frame with all options
-        button_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        button_frame.pack(fill='x', padx=15, pady=(5, 5))
-        
-        # Left side buttons
-        ctk.CTkButton(button_frame, text="Professional Role Summary", 
-                     command=self.open_role_summary_modal, 
-                     fg_color="#1976D2", hover_color="#1565C0", width=160).pack(side='left', padx=(0, 10))
-        ctk.CTkButton(button_frame, text="🔄 Clear All Filters", 
-                     command=self.reset_filters, 
-                     fg_color="#FF9800", hover_color="#F57C00", width=130).pack(side='left', padx=(0, 10))
-        ctk.CTkButton(button_frame, text="🗑️ Delete Selected", 
-                     command=self.delete_selected, 
-                     fg_color="#F44336", hover_color="#D32F2F", width=130).pack(side='left', padx=(0, 10))
-        ctk.CTkButton(button_frame, text="✅ Select All", 
-                     command=self.select_all_rows, 
-                     fg_color="#9C27B0", hover_color="#7B1FA2", width=100).pack(side='left', padx=(0, 10))
-        ctk.CTkButton(button_frame, text="❌ Deselect All", 
-                     command=self.deselect_all_rows, 
-                     fg_color="#607D8B", hover_color="#455A64", width=110).pack(side='left', padx=(0, 10))
-        
-        # Export buttons
-        export_frame = ctk.CTkFrame(button_frame, corner_radius=8)
-        export_frame.pack(side='left', padx=10)
-        
-        ctk.CTkLabel(export_frame, text="Export Data:", 
-                    font=ctk.CTkFont(family='Arial', size=11, weight='bold')).pack(side='left', padx=5)
-        
-        ctk.CTkButton(export_frame, text="📊 Excel", 
-                     command=self.save_to_excel,
-                     fg_color="#217346", hover_color="#1e6b40",
-                     width=80).pack(side='left', padx=5, pady=5)
-        
-        ctk.CTkButton(export_frame, text="📄 PDF",
-                     command=self.save_to_pdf,
-                     fg_color="#DB4437", hover_color="#c23321",
-                     width=80).pack(side='left', padx=5, pady=5)
-        
-        # Right side buttons
-        ctk.CTkButton(button_frame, text="🌙 Dark Mode", 
-                     command=self.toggle_dark_mode, 
-                     fg_color="#424242", hover_color="#303030", width=100).pack(side='right', padx=(0, 10))
-        ctk.CTkButton(button_frame, text="Agregar Actividad", 
-                     command=self.add_row, 
-                     fg_color="#388E3C", hover_color="#2E7D32", width=140).pack(side='right')
-        ctk.CTkButton(button_frame, text="Open File", 
-                     command=self.open_file, 
-                     fg_color="#0288D1", hover_color="#0277BD", width=100).pack(side='right', padx=(0, 10))
+        # Compact form frame - much smaller
+        form_section = ctk.CTkFrame(
+            content_container,
+            corner_radius=8,
+            fg_color=COLORS['light'],
+            border_width=1,
+            border_color=COLORS['border']
+        )
+        form_section.pack(fill='x', pady=(0, 5))
 
-        # Remove the always-visible small table from the main UI
-        # self.role_summary_frame = ctk.CTkFrame(summary_right)
-        # self.role_summary_frame.pack(padx=5, pady=5, anchor='ne')
-        # self.role_summary_tree = ...
+        # Ultra-compact form header
+        form_header = ctk.CTkFrame(
+            form_section,
+            height=30,  # Further reduced from 35
+            corner_radius=0,
+            fg_color=COLORS['primary']
+        )
+        form_header.pack(fill='x')
+        form_header.pack_propagate(False)
 
-        # Add a visual separator between form and table
-        separator = ctk.CTkFrame(self.root, height=3, fg_color="#BDBDBD")
-        separator.pack(fill='x', padx=10, pady=5)
+        form_title = ctk.CTkLabel(
+            form_header,
+            text="📝 Add Activity",  # Shortened text
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),  # Further reduced size
+            text_color="white"
+        )
+        form_title.pack(side='left', padx=12, pady=6)  # Further reduced padding
 
-        # Create the main table frame (always present)
-        self.table_frame = ctk.CTkFrame(self.root, corner_radius=10)
-        self.table_frame.pack(fill='both', expand=True, padx=15, pady=(5, 0))
+        # Very compact form frame
+        self.entry_frame = ctk.CTkFrame(
+            form_section, 
+            corner_radius=0,
+            fg_color="transparent"
+        )
+        self.entry_frame.pack(fill='x', padx=8, pady=5)  # Much reduced padding
+
+        # Ultra-compact action buttons section
+        actions_section = ctk.CTkFrame(
+            content_container,
+            height=50,  # Further reduced from 60
+            corner_radius=8,
+            fg_color=COLORS['light'],
+            border_width=1,
+            border_color=COLORS['border']
+        )
+        actions_section.pack(fill='x', pady=(0, 3))  # Further reduced padding
+        actions_section.pack_propagate(False)
+
+        # Actions content frame - ultra-compact
+        actions_content = ctk.CTkFrame(actions_section, fg_color="transparent")
+        actions_content.pack(fill='both', expand=True, padx=10, pady=5)  # Further reduced padding
+        
+        # Left side action buttons - Data Management
+        data_actions_frame = ctk.CTkFrame(actions_content, fg_color="transparent")
+        data_actions_frame.pack(side='left', fill='y')
+        
+        # Ultra-compact section label
+        ctk.CTkLabel(
+            data_actions_frame, 
+            text="Data Management", 
+            font=ctk.CTkFont(family="Segoe UI", size=8, weight="bold"),  # Further reduced size
+            text_color=COLORS['text_secondary']
+        ).pack(anchor='w', pady=(0, 2))  # Further reduced padding
+        
+        # Ultra-compact button container
+        data_buttons = ctk.CTkFrame(data_actions_frame, fg_color="transparent")
+        data_buttons.pack(fill='x')
+        
+        ctk.CTkButton(
+            data_buttons, 
+            text="📁 Open", 
+            command=self.open_file, 
+            fg_color=COLORS['info'], 
+            hover_color=COLORS['info_hover'], 
+            width=70,  # Further reduced width
+            height=24,  # Further reduced height
+            corner_radius=4,
+            font=ctk.CTkFont(family="Segoe UI", size=9)  # Further reduced font
+        ).pack(side='left', padx=(0, 4))
+        
+        ctk.CTkButton(
+            data_buttons, 
+            text="➕ Add", 
+            command=self.add_row, 
+            fg_color=COLORS['success'], 
+            hover_color=COLORS['success_hover'], 
+            width=60,  # Further reduced width
+            height=24,
+            corner_radius=4,
+            font=ctk.CTkFont(family="Segoe UI", size=9)
+        ).pack(side='left', padx=(0, 4))
+        
+        ctk.CTkButton(
+            data_buttons, 
+            text="🗑️ Delete", 
+            command=self.delete_selected, 
+            fg_color=COLORS['danger'], 
+            hover_color=COLORS['danger_hover'], 
+            width=70,
+            height=24,
+            corner_radius=4,
+            font=ctk.CTkFont(family="Segoe UI", size=9)
+        ).pack(side='left', padx=(0, 4))
+
+        # Middle section - Selection & Filtering
+        selection_actions_frame = ctk.CTkFrame(actions_content, fg_color="transparent")
+        selection_actions_frame.pack(side='left', fill='y', padx=(20, 20))  # Reduced padding
+        
+        # Ultra-compact section label
+        ctk.CTkLabel(
+            selection_actions_frame, 
+            text="Selection", 
+            font=ctk.CTkFont(family="Segoe UI", size=8, weight="bold"),
+            text_color=COLORS['text_secondary']
+        ).pack(anchor='w', pady=(0, 2))
+        
+        # Ultra-compact button container
+        selection_buttons = ctk.CTkFrame(selection_actions_frame, fg_color="transparent")
+        selection_buttons.pack(fill='x')
+        
+        ctk.CTkButton(
+            selection_buttons, 
+            text="✅ All", 
+            command=self.select_all_rows, 
+            fg_color=COLORS['purple'], 
+            hover_color=COLORS['purple_hover'], 
+            width=50,  # Much reduced
+            height=24,
+            corner_radius=4,
+            font=ctk.CTkFont(family="Segoe UI", size=9)
+        ).pack(side='left', padx=(0, 4))
+        
+        ctk.CTkButton(
+            selection_buttons, 
+            text="❌ None", 
+            command=self.deselect_all_rows, 
+            fg_color=COLORS['secondary'], 
+            hover_color=COLORS['dark'], 
+            width=60,
+            height=24,
+            corner_radius=4,
+            font=ctk.CTkFont(family="Segoe UI", size=9)
+        ).pack(side='left', padx=(0, 4))
+        
+        ctk.CTkButton(
+            selection_buttons, 
+            text="🔄 Clear", 
+            command=self.reset_filters, 
+            fg_color=COLORS['warning'], 
+            hover_color=COLORS['warning_hover'], 
+            width=60,
+            height=24,
+            corner_radius=4,
+            font=ctk.CTkFont(family="Segoe UI", size=9)
+        ).pack(side='left', padx=(0, 4))
+
+        # Right side action buttons - Reports & Export
+        reports_actions_frame = ctk.CTkFrame(actions_content, fg_color="transparent")
+        reports_actions_frame.pack(side='right', fill='y')
+        
+        # Ultra-compact section label
+        ctk.CTkLabel(
+            reports_actions_frame, 
+            text="Export", 
+            font=ctk.CTkFont(family="Segoe UI", size=8, weight="bold"),
+            text_color=COLORS['text_secondary']
+        ).pack(anchor='e', pady=(0, 2))
+        
+        # Ultra-compact button container
+        reports_buttons = ctk.CTkFrame(reports_actions_frame, fg_color="transparent")
+        reports_buttons.pack(fill='x')
+        
+        ctk.CTkButton(
+            reports_buttons, 
+            text="📊 Summary", 
+            command=self.open_role_summary_modal, 
+            fg_color=COLORS['primary'], 
+            hover_color=COLORS['primary_hover'], 
+            width=80,
+            height=24,
+            corner_radius=4,
+            font=ctk.CTkFont(family="Segoe UI", size=9)
+        ).pack(side='right', padx=(4, 0))
+        
+        ctk.CTkButton(
+            reports_buttons, 
+            text="📄 PDF",
+            command=self.save_to_pdf,
+            fg_color="#DC2626", 
+            hover_color="#B91C1C",
+            width=60,
+            height=24,
+            corner_radius=4,
+            font=ctk.CTkFont(family="Segoe UI", size=9)
+        ).pack(side='right', padx=(4, 0))
+        
+        ctk.CTkButton(
+            reports_buttons, 
+            text="📈 Excel", 
+            command=self.save_to_excel,
+            fg_color="#059669", 
+            hover_color="#047857",
+            width=70,
+            height=24,
+            corner_radius=4,
+            font=ctk.CTkFont(family="Segoe UI", size=9)
+        ).pack(side='right', padx=(4, 0))
+
+        # Maximized table section - takes most of the space
+        table_section = ctk.CTkFrame(
+            content_container,
+            corner_radius=8,
+            fg_color=COLORS['light'],
+            border_width=1,
+            border_color=COLORS['border']
+        )
+        table_section.pack(fill='both', expand=True)
+
+        # Ultra-compact table header
+        table_header = ctk.CTkFrame(
+            table_section,
+            height=30,  # Further reduced from 35
+            corner_radius=0,
+            fg_color=COLORS['secondary']
+        )
+        table_header.pack(fill='x')
+        table_header.pack_propagate(False)
+
+        table_title = ctk.CTkLabel(
+            table_header,
+            text="📋 Service Activities",  # Shortened text
+            font=ctk.CTkFont(family="Segoe UI", size=12, weight="bold"),  # Further reduced size
+            text_color="white"
+        )
+        table_title.pack(side='left', padx=12, pady=6)  # Further reduced padding
+
+        # Ultra-compact data summary in header
+        self.data_summary_label = ctk.CTkLabel(
+            table_header,
+            text="No data loaded",
+            font=ctk.CTkFont(family="Segoe UI", size=9),  # Further reduced size
+            text_color="#B3C5D1"
+        )
+        self.data_summary_label.pack(side='right', padx=12, pady=6)
+
+        # MAXIMIZED table frame - gets all remaining space
+        self.table_frame = ctk.CTkFrame(
+            table_section, 
+            corner_radius=0,
+            fg_color="transparent"
+        )
+        self.table_frame.pack(fill='both', expand=True, padx=3, pady=3)  # Minimal padding
 
         self.render_table()
         self.build_entry_fields()
@@ -301,16 +668,6 @@ class ExcelActivityApp:
 
         # Start auto-updating totals every 400ms
         self.auto_update_totals()
-
-        # Bottom frame with buttons (outside of scrollable area)
-        bottom_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        bottom_frame.pack(pady=10, fill='x')
-        ctk.CTkButton(bottom_frame, text="Reset Filtros", command=self.reset_filters,
-                     fg_color="#FF9800", hover_color="#F57C00").pack(side='left', padx=10)
-        ctk.CTkButton(bottom_frame, text="Save & Print in Excel", command=self.save_to_excel,
-                     fg_color="#217346", hover_color="#1e6b40").pack(side='right', padx=10)
-        ctk.CTkButton(bottom_frame, text="Save & Print in PDF", command=self.save_to_pdf,
-                     fg_color="#DB4437", hover_color="#c23321").pack(side='right', padx=10)
 
     def on_checkbox_click(self, event):
         """Handle checkbox column clicks for row selection"""
@@ -328,7 +685,7 @@ class ExcelActivityApp:
                 self.render_table()
 
     def select_all_rows(self):
-        """Select all visible rows"""
+        """Select all visible rows with modern feedback"""
         self.selected_rows.clear()  # Clear first to ensure clean state
         # Get the actual number of rows in the current DataFrame
         total_rows = len(self.df)
@@ -340,91 +697,172 @@ class ExcelActivityApp:
         
         print(f"Selected {len(self.selected_rows)} rows out of {total_rows}: {sorted(self.selected_rows)}")  # Debug
         self.render_table()  # Re-render to show checkmarks
+        
+        # Modern status feedback
+        self.update_status(f"✅ Selected all {total_rows} rows", COLORS['success'])
 
     def deselect_all_rows(self):
-        """Deselect all rows"""
+        """Deselect all rows with modern feedback"""
+        total_selected = len(self.selected_rows)
         self.selected_rows.clear()
         self.render_table()
+        
+        # Modern status feedback
+        self.update_status(f"❌ Deselected {total_selected} rows", COLORS['warning'])
     def open_role_summary_modal(self):
-        """Open a modal window showing the Professional Role summary table"""
+        """Open a modern modal window showing the Professional Role summary table"""
         if hasattr(self, 'role_summary_modal') and self.role_summary_modal and tk.Toplevel.winfo_exists(self.role_summary_modal):
             self.role_summary_modal.lift()
             return
 
-        # Create new modal window
+        # Create modern modal window
         self.role_summary_modal = ctk.CTkToplevel(self.root)
-        self.role_summary_modal.title("Professional Role & Hours Summary")
-        self.role_summary_modal.geometry("450x500")
+        self.role_summary_modal.title("📊 Professional Role & Hours Summary")
+        self.role_summary_modal.geometry("550x600")
         self.role_summary_modal.transient(self.root)
         self.role_summary_modal.grab_set()
-        self.role_summary_modal.resizable(False, False)
+        self.role_summary_modal.resizable(True, True)
+        self.role_summary_modal.minsize(500, 500)
 
-        # Add title label
-        title_label = ctk.CTkLabel(
+        # Modern header section
+        header_frame = ctk.CTkFrame(
             self.role_summary_modal,
-            text="Total Hours per Professional Role",
-            font=ctk.CTkFont(family="Arial", size=16, weight="bold"),
-            text_color="#1976D2"
+            height=80,
+            corner_radius=12,
+            fg_color=COLORS['primary']
         )
-        title_label.pack(pady=(20, 15))
+        header_frame.pack(fill='x', padx=20, pady=20)
+        header_frame.pack_propagate(False)
 
-        # Create main frame
-        frame = ctk.CTkFrame(self.role_summary_modal, corner_radius=10)
-        frame.pack(fill='both', expand=True, padx=20, pady=(0, 20))
+        # Header content
+        header_content = ctk.CTkFrame(header_frame, fg_color="transparent")
+        header_content.pack(fill='both', expand=True, padx=20, pady=15)
 
-        # Create treeview with fixed column widths
+        title_label = ctk.CTkLabel(
+            header_content,
+            text="📊 Professional Role Summary",
+            font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"),
+            text_color="white"
+        )
+        title_label.pack(side='left')
+
+        subtitle_label = ctk.CTkLabel(
+            header_content,
+            text="Total Hours by Role",
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            text_color="#B3D4FC"
+        )
+        subtitle_label.pack(side='left', padx=(15, 0))
+
+        # Modern main content frame
+        content_frame = ctk.CTkFrame(
+            self.role_summary_modal, 
+            corner_radius=12,
+            fg_color=COLORS['light'],
+            border_width=1,
+            border_color=COLORS['border']
+        )
+        content_frame.pack(fill='both', expand=True, padx=20, pady=(0, 20))
+
+        # Create modern treeview
+        tree_frame = ttk.Frame(content_frame)
+        tree_frame.pack(fill='both', expand=True, padx=15, pady=15)
+
         self.role_summary_tree = ttk.Treeview(
-            frame,
+            tree_frame,
             columns=["Professional Role", "Manhours"],
             show='headings',
-            height=15,
-            style="Summary.Treeview"
+            height=18,
+            style="ModernSummary.Treeview"
         )
 
-        # Configure treeview style
+        # Modern treeview styling
         style = ttk.Style()
-        style.configure("Summary.Treeview",
+        style.configure("ModernSummary.Treeview",
                        background="white",
-                       foreground="black",
-                       rowheight=25,
-                       fieldbackground="white")
-        style.configure("Summary.Treeview.Heading",
-                       font=('Arial', 9, 'bold'),
-                       background="#E3F2FD")
+                       foreground=COLORS['text_primary'],
+                       rowheight=35,
+                       fieldbackground="white",
+                       font=('Segoe UI', 11),
+                       borderwidth=0,
+                       relief="flat")
+        
+        style.configure("ModernSummary.Treeview.Heading",
+                       font=('Segoe UI', 11, 'bold'),
+                       background=COLORS['secondary'],
+                       foreground="white",
+                       borderwidth=0,
+                       relief="flat",
+                       padding=(15, 10))
 
-        # Configure headers
-        self.role_summary_tree.heading("Professional Role", text="Professional Role",
+        # Configure modern headers with icons
+        self.role_summary_tree.heading("Professional Role", text="👔 Professional Role",
                                      command=lambda: self.sort_summary("Professional Role"))
-        self.role_summary_tree.heading("Manhours", text="Internal Hours",
+        self.role_summary_tree.heading("Manhours", text="⏱️ Internal Hours",
                                      command=lambda: self.sort_summary("Manhours"))
 
-        # Configure columns
-        self.role_summary_tree.column("Professional Role", width=250, anchor='w')
-        self.role_summary_tree.column("Manhours", width=120, anchor='e')
+        # Configure columns with better spacing
+        self.role_summary_tree.column("Professional Role", width=300, anchor='w')
+        self.role_summary_tree.column("Manhours", width=150, anchor='e')
 
-        # Add scrollbar
-        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=self.role_summary_tree.yview)
+        # Modern scrollbar
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.role_summary_tree.yview, style="Modern.Vertical.TScrollbar")
         self.role_summary_tree.configure(yscrollcommand=scrollbar.set)
 
-        # Pack tree and scrollbar
-        self.role_summary_tree.pack(side='left', fill='both', expand=True)
-        scrollbar.pack(side='right', fill='y')
+        # Grid layout for better control
+        self.role_summary_tree.grid(row=0, column=0, sticky='nsew')
+        scrollbar.grid(row=0, column=1, sticky='ns')
+        tree_frame.grid_columnconfigure(0, weight=1)
+        tree_frame.grid_rowconfigure(0, weight=1)
 
         # Update the summary data
         self.update_role_summary()
 
-        # Add close button
-        close_btn = ctk.CTkButton(
-            self.role_summary_modal,
-            text="Close",
-            command=self.role_summary_modal.destroy,
-            fg_color="#1976D2",
-            hover_color="#1565C0",
-            width=120,
-            height=35,
-            font=ctk.CTkFont(family="Arial", size=12)
+        # Modern button section
+        button_frame = ctk.CTkFrame(self.role_summary_modal, fg_color="transparent")
+        button_frame.pack(fill='x', padx=20, pady=(10, 20))
+
+        # Export button
+        export_btn = ctk.CTkButton(
+            button_frame,
+            text="📊 Export Summary",
+            command=lambda: self.export_role_summary(),
+            fg_color=COLORS['success'],
+            hover_color=COLORS['success_hover'],
+            width=140,
+            height=38,
+            corner_radius=8,
+            font=ctk.CTkFont(family="Segoe UI", size=12)
         )
-        close_btn.pack(pady=15)
+        export_btn.pack(side='left')
+
+        # Close button with modern styling
+        close_btn = ctk.CTkButton(
+            button_frame,
+            text="✖️ Close",
+            command=self.role_summary_modal.destroy,
+            fg_color=COLORS['secondary'],
+            hover_color=COLORS['dark'],
+            width=120,
+            height=38,
+            corner_radius=8,
+            font=ctk.CTkFont(family="Segoe UI", size=12)
+        )
+        close_btn.pack(side='right')
+
+    def export_role_summary(self):
+        """Export role summary to Excel (placeholder method)"""
+        try:
+            if hasattr(self, 'role_summary_data') and not self.role_summary_data.empty:
+                # Update status
+                if hasattr(self, 'status_label'):
+                    self.status_label.configure(text="Exporting summary...", text_color=COLORS['info'])
+                # This would implement actual export functionality
+                print("Export role summary functionality would be implemented here")
+            else:
+                print("No role summary data to export")
+        except Exception as e:
+            print(f"Error exporting role summary: {e}")
 
     def sort_column(self, column, ascending=True):
         """Sort the data by column"""
@@ -515,9 +953,7 @@ class ExcelActivityApp:
         self.root.after(400, self.auto_update_totals)
 
     def update_sum_labels(self):
-        # No longer need the separate labels since we're using table row
-        # But keep the calculation for debugging and potential future use
-        
+        # Calculate totals and update summation row
         try:
             df = self.df
             col_internal = "Estimated internal"
@@ -542,6 +978,9 @@ class ExcelActivityApp:
         
         # Update the summation row in the table if it exists
         self.update_summation_row_in_table(total_internal, total_external)
+        
+        # Update data summary
+        self.update_data_summary()
         
         print(f"Updated totals: Internal={total_internal:.2f}, External={total_external:.2f}")  # Debug
 
@@ -743,6 +1182,10 @@ class ExcelActivityApp:
     def on_project_selected(self, choice=None):
         project_name = self.project_combobox.get()
         self.current_project = project_name
+        
+        # Provide loading feedback
+        self.update_status(f"📁 Loading project: {project_name}...", COLORS['info'])
+        
         # Fetch project ID directly from DB
         import sqlalchemy
         db_path = os.path.join(os.path.dirname(__file__), 'Workload.db')
@@ -750,6 +1193,7 @@ class ExcelActivityApp:
         with engine.connect() as conn:
             result = conn.execute(sqlalchemy.text('SELECT id FROM project WHERE name = :name'), {'name': project_name}).fetchone()
             project_id = result[0] if result else None
+        
         # Load services for this project directly from DB
         import pandas as pd
         try:
@@ -810,6 +1254,10 @@ class ExcelActivityApp:
                 if not self.refreshing_data:
                     self.render_table()
                 self.update_sum_labels()  # Update totals after loading data
+                
+                # Success feedback
+                total_rows = len(self.df)
+                self.update_status(f"✅ Loaded {total_rows} activities from {project_name}", COLORS['success'])
             else:
                 self.df = pd.DataFrame(columns=self.display_columns)
                 self.original_df = pd.DataFrame(columns=[col for col in self.display_columns if col not in ['Select', 'ID']])
@@ -817,68 +1265,118 @@ class ExcelActivityApp:
                 if not self.refreshing_data:
                     self.render_table()
                 self.update_sum_labels()  # Update totals even when empty
+                
+                # No data feedback
+                self.update_status(f"⚠️ No data found for project: {project_name}", COLORS['warning'])
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load services for project: {e}")
+            self.update_status(f"❌ Failed to load project data", COLORS['danger'])
 
     def build_entry_fields(self):
         for widget in self.entry_frame.winfo_children():
             widget.destroy()
         self.entries.clear()
-        # Define the order and grouping of fields for a compact grid
+        
+        # Ultra-compact field layout - minimize vertical space
         fields = [
-            ["Stick-Built", "Module", "Activities", "Title"],
-            ["Technical Unit", "Assigned to", "Progress", "Professional Role"],
-            ["Department", "Estimated internal", "Estimated external", "Start date"],
-            ["Due date", "Notes"]
+            ["Stick-Built", "Module", "Activities", "Title", "Department", "Technical Unit", "Assigned to"],
+            ["Progress", "Professional Role", "Start date", "Estimated internal", "Estimated external", "Due date", "Notes"]
         ]
         
-        # Set column weights for better distribution
-        self.entry_frame.grid_columnconfigure(0, weight=2)  # Stick-Built
-        self.entry_frame.grid_columnconfigure(1, weight=2)  # Module
-        self.entry_frame.grid_columnconfigure(2, weight=4)  # Activities (double width)
-        self.entry_frame.grid_columnconfigure(3, weight=2)  # Title
+        # Configure grid weights for responsive design - now 7 columns
+        for i in range(7):
+            self.entry_frame.grid_columnconfigure(i, weight=1)
         
-        # Define field widths
+        # Ultra-compact field widths
         field_widths = {
-            "Stick-Built": 200,
-            "Module": 200,
-            "Activities": 400,  # Much wider for Activities
-            "Title": 250,
-            "Technical Unit": 250,
-            "Assigned to": 250,
-            "Progress": 180,
-            "Professional Role": 250,
-            "Department": 180,
-            "Estimated internal": 180,
-            "Estimated external": 180,
-            "Start date": 180,
-            "Due date": 180,
-            "Notes": 500  # Wider for Notes
+            "Stick-Built": 130,     # Further reduced
+            "Module": 130,          # Further reduced
+            "Activities": 200,      # Further reduced
+            "Title": 150,           # Further reduced
+            "Technical Unit": 140,
+            "Assigned to": 140,
+            "Progress": 100,        # Further reduced
+            "Professional Role": 150,
+            "Department": 100,      # Further reduced
+            "Estimated internal": 100,  # Further reduced
+            "Estimated external": 100,  # Further reduced
+            "Start date": 110,      # Further reduced
+            "Due date": 110,        # Further reduced
+            "Notes": 250            # Further reduced
+        }
+        
+        # Simplified field icons
+        field_icons = {
+            "Stick-Built": "🏗️",
+            "Module": "🧩",
+            "Activities": "📋",
+            "Title": "📄",
+            "Technical Unit": "⚙️",
+            "Assigned to": "👤",
+            "Progress": "📊",
+            "Professional Role": "👔",
+            "Department": "🏢",
+            "Estimated internal": "⏱️",
+            "Estimated external": "⏰",
+            "Start date": "📅",
+            "Due date": "📆",
+            "Notes": "📝"
         }
         
         for row_idx, row in enumerate(fields):
             for col_idx, col in enumerate(row):
-                # Create label
-                lbl = ctk.CTkLabel(self.entry_frame, text=col, 
-                                  font=ctk.CTkFont(family="Arial", size=11, weight="bold"),
-                                  anchor="w")
-                lbl.grid(row=row_idx*2, column=col_idx, sticky='w', padx=10, pady=(10,5))
+                # Create very compact label with icon
+                icon = field_icons.get(col, "")
+                label_text = f"{icon} {col}" if icon else col
                 
-                # Create field
-                width = field_widths.get(col, 200)  # Default width if not specified
+                lbl = ctk.CTkLabel(
+                    self.entry_frame, 
+                    text=label_text, 
+                    font=ctk.CTkFont(family="Segoe UI", size=9, weight="bold"),  # Even smaller font
+                    text_color=COLORS['text_primary'],
+                    anchor="w"
+                )
+                lbl.grid(row=row_idx*2, column=col_idx, sticky='w', padx=4, pady=(4,2))  # Much reduced padding
+                
+                # Create compact field with improved styling
+                width = field_widths.get(col, 150)
                 
                 if col in self.foreign_key_options and col != "Activities":
-                    # Use dropdown for all foreign key fields except Activities
+                    # Compact dropdown for foreign key fields
                     options = self.foreign_key_options[col]
-                    widget = ctk.CTkComboBox(self.entry_frame, width=width, state="readonly",
-                                           font=ctk.CTkFont(family="Arial", size=11))
+                    widget = ctk.CTkComboBox(
+                        self.entry_frame, 
+                        width=width, 
+                        height=24,  # Further reduced height
+                        state="readonly",
+                        font=ctk.CTkFont(family="Segoe UI", size=9),  # Even smaller font
+                        dropdown_font=ctk.CTkFont(family="Segoe UI", size=8),
+                        corner_radius=4,
+                        border_width=1,
+                        border_color=COLORS['border'],
+                        button_color=COLORS['primary'],
+                        button_hover_color=COLORS['primary_hover']
+                    )
                     widget.configure(values=[o['name'] for o in options])
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=4, pady=(0,4))  # Much reduced padding
+                    
                 elif col == "Activities":
-                    # Special searchable combobox for Activities
-                    widget = ctk.CTkComboBox(self.entry_frame, width=width, state="normal",
-                                           font=ctk.CTkFont(family="Arial", size=11))
+                    # Special compact searchable combobox for Activities
+                    widget = ctk.CTkComboBox(
+                        self.entry_frame, 
+                        width=width, 
+                        height=24,  # Further reduced height
+                        state="normal",
+                        font=ctk.CTkFont(family="Segoe UI", size=9),
+                        dropdown_font=ctk.CTkFont(family="Segoe UI", size=8),
+                        corner_radius=4,
+                        border_width=1,
+                        border_color=COLORS['border'],
+                        button_color=COLORS['info'],
+                        button_hover_color=COLORS['info_hover']
+                    )
+                    
                     # Get existing activities from foreign key options if available
                     if col in self.foreign_key_options:
                         activity_options = [o['name'] for o in self.foreign_key_options[col]]
@@ -896,25 +1394,59 @@ class ExcelActivityApp:
                     widget.bind('<KeyRelease>', on_activities_key_release)
                     
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=4, pady=(0,4))
+                    
                 elif col in ["Department", "Estimated internal", "Estimated external", "Start date", "Due date"]:
-                    # Use entry field for these columns
-                    widget = ctk.CTkEntry(self.entry_frame, width=width,
-                                        font=ctk.CTkFont(family="Arial", size=11))
+                    # Compact entry fields
+                    widget = ctk.CTkEntry(
+                        self.entry_frame, 
+                        width=width,
+                        height=24,  # Further reduced height
+                        font=ctk.CTkFont(family="Segoe UI", size=9),  # Even smaller font
+                        corner_radius=4,
+                        border_width=1,
+                        border_color=COLORS['border']
+                    )
+                    
+                    # Set default values
                     if col == "Department":
                         widget.insert(0, "FABSI")
+                    elif col in ["Start date", "Due date"]:
+                        widget.configure(placeholder_text="YYYY-MM-DD")
+                    elif col in ["Estimated internal", "Estimated external"]:
+                        widget.configure(placeholder_text="Hours")
+                        
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=4, pady=(0,4))
+                    
                 elif col == "Notes":
-                    widget = ctk.CTkEntry(self.entry_frame, width=width,
-                                        font=ctk.CTkFont(family="Arial", size=11))
+                    # Compact notes field
+                    widget = ctk.CTkEntry(
+                        self.entry_frame, 
+                        width=width,
+                        height=24,  # Further reduced height
+                        font=ctk.CTkFont(family="Segoe UI", size=9),
+                        corner_radius=4,
+                        border_width=1,
+                        border_color=COLORS['border'],
+                        placeholder_text="Notes..."  # Shorter placeholder
+                    )
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=2, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=4, pady=(0,4))
+                    
                 else:
-                    widget = ctk.CTkEntry(self.entry_frame, width=width,
-                                        font=ctk.CTkFont(family="Arial", size=11))
+                    # Default ultra-compact entry field
+                    widget = ctk.CTkEntry(
+                        self.entry_frame, 
+                        width=width,
+                        height=24,  # Further reduced height
+                        font=ctk.CTkFont(family="Segoe UI", size=9),
+                        corner_radius=4,
+                        border_width=1,
+                        border_color=COLORS['border']
+                    )
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=4, pady=(0,4))
 
     def update_activities_filter(self, event):
         text = self.entries["Activities"].get()
@@ -952,32 +1484,55 @@ class ExcelActivityApp:
             combo_widget.configure(values=all_activities)
 
     def render_table(self):
-        """Render the main table with data"""
+        """Render the main table with modern styling"""
         # Clear existing widgets
         for widget in self.table_frame.winfo_children():
             widget.destroy()
         
-        # Create main container
-        main_container = ctk.CTkFrame(self.table_frame, fg_color="transparent")
-        main_container.pack(fill='both', expand=True)
+        # Update data summary in header
+        if hasattr(self, 'data_summary_label'):
+            total_rows = len(self.df)
+            if total_rows > 0:
+                # Calculate total hours for summary
+                try:
+                    internal_total = pd.to_numeric(self.df.get("Estimated internal", []), errors='coerce').sum()
+                    external_total = pd.to_numeric(self.df.get("Estimated external", []), errors='coerce').sum()
+                    summary_text = f"{total_rows} activities • {internal_total:,.0f}h internal • {external_total:,.0f}h external"
+                except:
+                    summary_text = f"{total_rows} activities loaded"
+            else:
+                summary_text = "No data loaded"
+            self.data_summary_label.configure(text=summary_text)
         
-        # Create the container for our data table
-        self.scrollable_frame = ctk.CTkFrame(main_container, corner_radius=8)
-        self.scrollable_frame.pack(fill='both', expand=True, padx=5, pady=5)
+        # Create modern table container
+        table_container = ctk.CTkFrame(
+            self.table_frame, 
+            corner_radius=8,
+            fg_color="white",
+            border_width=1,
+            border_color=COLORS['border']
+        )
+        table_container.pack(fill='both', expand=True)
         
-        # Create and configure treeview with scrollbars
-        tree_frame = ttk.Frame(self.scrollable_frame)
-        tree_frame.pack(fill='both', expand=True)
+        # Create and configure treeview with modern styling
+        tree_frame = ttk.Frame(table_container)
+        tree_frame.pack(fill='both', expand=True, padx=8, pady=8)
         
-        # Create Treeview
-        self.tree = ttk.Treeview(tree_frame, columns=list(self.df.columns), show='headings', height=15)
+        # Create Treeview with modern styling
+        self.tree = ttk.Treeview(
+            tree_frame, 
+            columns=list(self.df.columns), 
+            show='headings', 
+            height=20,  # Increased height
+            style="Modern.Treeview"
+        )
         
-        # Create scrollbars
-        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
+        # Create modern scrollbars
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview, style="Modern.Vertical.TScrollbar")
+        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview, style="Modern.Horizontal.TScrollbar")
         self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
         
-        # Grid layout
+        # Grid layout with modern spacing
         self.tree.grid(row=0, column=0, sticky='nsew')
         vsb.grid(row=0, column=1, sticky='ns')
         hsb.grid(row=1, column=0, sticky='ew')
@@ -986,96 +1541,137 @@ class ExcelActivityApp:
         tree_frame.grid_columnconfigure(0, weight=1)
         tree_frame.grid_rowconfigure(0, weight=1)
         
-        # Configure headers and columns with increased widths
+        # Modern column configuration with better widths
         column_widths = {
-            "Select": 45,               # Increased for better checkbox visibility
-            "ID": 50,                  # Increased for larger numbers
-            "Stick-Built": 100,        # Increased for longer names
-            "Module": 100,             # Increased for longer module names
-            "Activities": 400,          # Significantly increased for full activity descriptions
-            "Title": 150,              # Increased for full titles
-            "Department": 100,         # Increased for department names
-            "Technical Unit": 150,     # Increased for longer unit names
-            "Assigned to": 150,        # Increased for full names
-            "Progress": 100,           # Increased for progress status
-            "Estimated internal": 100,  # Increased for larger numbers
-            "Estimated external": 100,  # Increased for larger numbers
-            "Start date": 100,         # Increased for full date format
-            "Due date": 100,           # Increased for full date format
-            "Notes": 300,              # Significantly increased for full notes
-            "Professional Role": 200    # Increased for full role names
+            "Select": 60,               # Better checkbox visibility
+            "ID": 60,                   # Better number display
+            "Stick-Built": 120,         # Improved width
+            "Module": 120,              # Improved width
+            "Activities": 450,          # Much wider for full descriptions
+            "Title": 180,               # Better title display
+            "Department": 120,          # Department names
+            "Technical Unit": 180,      # Full unit names
+            "Assigned to": 160,         # Full employee names
+            "Progress": 120,            # Progress status
+            "Estimated internal": 120,  # Better number display
+            "Estimated external": 120,  # Better number display
+            "Start date": 110,          # Full date format
+            "Due date": 110,            # Full date format
+            "Notes": 350,               # Much wider for notes
+            "Professional Role": 220    # Full role names
         }
         
+        # Modern header mapping with icons
         header_map = {
-            "Select": "☑", "ID": "ID", "Stick-Built": "Stick-Built",
-            "Module": "Module", "Activities": "Activities",
-            "Title": "Title", "Department": "Department",
-            "Technical Unit": "Tech. Unit", "Assigned to": "Assigned To",
-            "Progress": "Progress", "Notes": "Notes",
-            "Professional Role": "Professional Role",
-            "Estimated internal": "Est. Internal",
-            "Estimated external": "Est. External",
-            "Start date": "Start Date", "Due date": "Due Date"
+            "Select": "☑️", 
+            "ID": "🆔", 
+            "Stick-Built": "🏗️ Stick-Built",
+            "Module": "🧩 Module", 
+            "Activities": "📋 Activities",
+            "Title": "📄 Title", 
+            "Department": "🏢 Department",
+            "Technical Unit": "⚙️ Tech. Unit", 
+            "Assigned to": "👤 Assigned To",
+            "Progress": "📊 Progress", 
+            "Notes": "📝 Notes",
+            "Professional Role": "👔 Professional Role",
+            "Estimated internal": "⏱️ Est. Internal",
+            "Estimated external": "⏰ Est. External",
+            "Start date": "📅 Start Date", 
+            "Due date": "📆 Due Date"
         }
         
-        # Configure columns with improved readability and Excel-like filtering
+        # Configure modern column styling
         for col in self.df.columns:
-            # Add filter arrow only for non-Select and non-ID columns
+            # Add filter functionality for filterable columns
             if col not in ["Select", "ID"]:
                 header_text = f"{header_map.get(col, col)} ▼"
-                # Use functools.partial to avoid lambda closure issues
-                from functools import partial
-                self.tree.heading(col, text=header_text, command=partial(self.show_filter_menu, col))
+                try:
+                    from functools import partial
+                    self.tree.heading(col, text=header_text, command=partial(self.show_filter_menu, col))
+                except:
+                    # Fallback if show_filter_menu doesn't exist
+                    self.tree.heading(col, text=header_map.get(col, col))
             else:
                 header_text = header_map.get(col, col)
                 self.tree.heading(col, text=header_text)
             
-            width = column_widths.get(col, 100)
+            width = column_widths.get(col, 120)
             anchor = 'w' if col in ["Activities", "Title", "Notes", "Technical Unit", 
                                   "Assigned to", "Professional Role", "Department"] else 'center'
-            self.tree.column(col, width=width, minwidth=50, stretch=True, anchor=anchor)
+            self.tree.column(col, width=width, minwidth=80, stretch=True, anchor=anchor)
         
-        # Style the treeview with increased row height for better readability
+        # Modern treeview styling
         style = ttk.Style()
-        style.configure("Treeview",
+        
+        # Configure modern treeview style
+        style.configure("Modern.Treeview",
                        background="white",
-                       foreground="black",
-                       rowheight=40,  # Increased row height
+                       foreground=COLORS['text_primary'],
+                       rowheight=45,  # Increased for better readability
                        fieldbackground="white",
-                       font=('Arial', 10))  # Slightly larger font
+                       font=('Segoe UI', 11),  # Modern font
+                       borderwidth=0,
+                       relief="flat")
         
-        style.configure("Treeview.Heading",
-                       background="#D9D9D9",
-                       font=('Arial', 9, 'bold'))
+        style.configure("Modern.Treeview.Heading",
+                       background=COLORS['primary'],
+                       foreground="white",
+                       font=('Segoe UI', 10, 'bold'),
+                       borderwidth=0,
+                       relief="flat",
+                       padding=(10, 8))
         
-        # Insert data
+        # Modern scrollbar styling
+        style.configure("Modern.Vertical.TScrollbar",
+                       background=COLORS['light'],
+                       troughcolor=COLORS['border'],
+                       borderwidth=0,
+                       arrowcolor=COLORS['secondary'],
+                       darkcolor=COLORS['primary'],
+                       lightcolor=COLORS['primary'])
+        
+        style.configure("Modern.Horizontal.TScrollbar",
+                       background=COLORS['light'],
+                       troughcolor=COLORS['border'],
+                       borderwidth=0,
+                       arrowcolor=COLORS['secondary'],
+                       darkcolor=COLORS['primary'],
+                       lightcolor=COLORS['primary'])
+        
+        # Insert data with modern row styling
         for i, row in self.df.iterrows():
-            tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+            tag = 'even_row' if i % 2 == 0 else 'odd_row'
             row_values = list(row)
+            
+            # Modern checkbox display
             if len(row_values) > 0 and 'Select' in self.df.columns:
                 checkbox_idx = self.df.columns.get_loc('Select')
-                row_values[checkbox_idx] = '☑' if i in self.selected_rows else '☐'
+                row_values[checkbox_idx] = '✅' if i in self.selected_rows else '⬜'
+            
             self.tree.insert('', 'end', iid=str(i), values=row_values, tags=(tag,))
         
-        # ADD SUMMATION ROW as the last row of the table
+        # Add modern summation row
         self.add_summation_row_to_table()
         
-        # Configure row colors
-        self.tree.tag_configure('oddrow', background='white')
-        self.tree.tag_configure('evenrow', background='#F8F8F8')
-        # Configure summation row with bright colors
-        self.tree.tag_configure('total_row', background='#FFD700', foreground='#000000', font=('Arial', 12, 'bold'))
+        # Configure modern row colors with subtle alternation
+        self.tree.tag_configure('odd_row', background='white')
+        self.tree.tag_configure('even_row', background='#F8FAFC')
+        self.tree.tag_configure('total_row', 
+                               background=COLORS['primary'], 
+                               foreground='white', 
+                               font=('Segoe UI', 12, 'bold'))
         
-        # Bind events
+        # Bind modern events
         self.tree.bind("<Double-1>", self.edit_cell)
         self.tree.bind("<Button-1>", self.on_checkbox_click)
         
-        # Update the totals after rendering the table
+        # Update totals
         self.update_sum_labels()
 
     def add_summation_row_to_table(self):
-        """Add a summation row as the last row of the table"""
-        # Calculate totals
+        """Add a modern summation row as the last row of the table"""
+        # Calculate totals with improved error handling
         total_internal = 0
         total_external = 0
         
@@ -1090,25 +1686,36 @@ class ExcelActivityApp:
         except Exception as e:
             print(f"Error calculating totals for summation row: {e}")
         
-        # Create summation row values
+        # Create modern summation row values with improved formatting
         row_values = []
         for col in self.df.columns:
             if col == "Select":
-                row_values.append("📊")  # Special icon for totals row
+                row_values.append("🎯")  # Target icon for totals row
             elif col == "ID":
                 row_values.append("TOTAL")
             elif col == "Activities":
-                row_values.append("📈 TOTAL PROJECT HOURS")
+                row_values.append("📈 TOTAL PROJECT SUMMARY")
             elif col == "Estimated internal":
-                row_values.append(f"{total_internal:,.2f}")
+                row_values.append(f"{total_internal:,.1f}h")  # Modern hours formatting
             elif col == "Estimated external":
-                row_values.append(f"{total_external:,.2f}")
+                row_values.append(f"{total_external:,.1f}h")  # Modern hours formatting
             elif col in ["Department"]:
-                row_values.append("ALL")
+                row_values.append("ALL DEPTS")
+            elif col == "Progress":
+                # Calculate average progress if possible
+                try:
+                    progress_values = pd.to_numeric(self.df[col], errors='coerce').dropna()
+                    if len(progress_values) > 0:
+                        avg_progress = progress_values.mean()
+                        row_values.append(f"{avg_progress:.1f}%")
+                    else:
+                        row_values.append("—")
+                except:
+                    row_values.append("—")
             else:
-                row_values.append("")  # Empty for other columns
+                row_values.append("—")  # Modern dash for empty cells
         
-        # Insert the summation row with special styling
+        # Insert the summation row with modern styling
         self.tree.insert('', 'end', iid='TOTALS_ROW', values=row_values, tags=('total_row',))
 
     def get_visible_columns(self):
