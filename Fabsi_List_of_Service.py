@@ -27,6 +27,10 @@ class ExcelActivityApp:
         self.df = pd.DataFrame(columns=self.display_columns)
         self.original_df = self.df.copy()
         self.selected_rows = set()  # Track selected rows
+        
+        # Filter state management
+        self.active_column_filters = {}  # Store active column filters
+        self.refreshing_data = False  # Flag to control table rendering during data refresh
 
         self.file_path = ""
         self.tree = None
@@ -549,6 +553,13 @@ class ExcelActivityApp:
         if not hasattr(self, 'role_summary_tree') or not self.role_summary_tree:
             return
         
+        # Check if the tree widget still exists (hasn't been destroyed)
+        try:
+            self.role_summary_tree.get_children()
+        except tk.TclError:
+            # Tree has been destroyed, skip update
+            return
+        
         # Clear existing items
         for row in self.role_summary_tree.get_children():
             self.role_summary_tree.delete(row)
@@ -767,12 +778,16 @@ class ExcelActivityApp:
                     self.original_df = pd.DataFrame(columns=[col for col in self.display_columns if col not in ['Select', 'ID']])
                     self.df = pd.DataFrame(columns=self.display_columns)
                 
-                self.render_table()
+                # Only render table if we're not in the middle of a data refresh
+                if not self.refreshing_data:
+                    self.render_table()
                 self.update_sum_labels()  # Update totals after loading data
             else:
                 self.df = pd.DataFrame(columns=self.display_columns)
                 self.original_df = pd.DataFrame(columns=[col for col in self.display_columns if col not in ['Select', 'ID']])
-                self.render_table()
+                # Only render table if we're not in the middle of a data refresh
+                if not self.refreshing_data:
+                    self.render_table()
                 self.update_sum_labels()  # Update totals even when empty
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load services for project: {e}")
@@ -1165,12 +1180,12 @@ class ExcelActivityApp:
         canvas.create_window((0, 0), window=checkbox_frame, anchor='nw')
         
         # Dictionary to store checkbox variables
-        self.filter_vars = {}
+        self.current_column_filter_vars = {}
         
         # Add checkboxes
         for val in self.current_filter_values:
             var = tk.BooleanVar()
-            self.filter_vars[val] = var
+            self.current_column_filter_vars[val] = var
             cb = ttk.Checkbutton(checkbox_frame, text=str(val), variable=var)
             cb.pack(anchor='w', padx=5, pady=1)
         
@@ -1245,32 +1260,82 @@ class ExcelActivityApp:
     def apply_column_filter(self, column, *args):
         """Apply filter to the column based on selected checkboxes"""
         # Get selected values from checkboxes
-        selected_values = [val for val, var in self.filter_vars.items() if var.get()]
+        selected_values = [val for val, var in self.current_column_filter_vars.items() if var.get()]
         
         if not selected_values:  # If nothing selected, show all
+            # Remove this column's filter
+            if column in self.active_column_filters:
+                del self.active_column_filters[column]
             self.clear_column_filter(column)
             return
         
-        # Apply filter
-        mask = self.df[column].astype(str).isin([str(v) for v in selected_values])
-        self.df = self.df[mask]
+        # Store the filter state for this column
+        self.active_column_filters[column] = selected_values
+        print(f"Stored filter for {column}: {selected_values}")  # Debug
+        
+        # Apply all active filters starting from original data
+        self.apply_all_active_filters()
         
         if self.filter_popup:
             self.filter_popup.destroy()
             
-        self.render_table()
         self.update_sum_labels()
         self.update_role_summary()
 
     def clear_column_filter(self, column):
         """Clear filter for the column"""
-        # Reset to original data for this column
-        self.df = self.original_df.copy()
+        # Remove this column's filter from active filters
+        if column in self.active_column_filters:
+            del self.active_column_filters[column]
+            print(f"Cleared filter for {column}")  # Debug
+        
+        # Apply all remaining active filters
+        self.apply_all_active_filters()
+        
         if self.filter_popup:
             self.filter_popup.destroy()
-        self.render_table()
+            
         self.update_sum_labels()
         self.update_role_summary()
+
+    def apply_all_active_filters(self):
+        """Apply all active filters (both dropdown and column filters) to the data"""
+        # Start with original data without Select and ID columns
+        df_original_clean = self.original_df.copy()
+        
+        # Remove Select and ID columns if they exist in original_df
+        if 'Select' in df_original_clean.columns:
+            df_original_clean = df_original_clean.drop('Select', axis=1)
+        if 'ID' in df_original_clean.columns:
+            df_original_clean = df_original_clean.drop('ID', axis=1)
+        
+        df_filtered = df_original_clean.copy()
+        
+        # Apply dropdown filters first (if any exist)
+        if hasattr(self, 'filter_vars'):
+            for col, var in self.filter_vars.items():
+                val = var.get()
+                if val != "Todos" and col not in ["Select", "ID"] and col in df_filtered.columns:
+                    df_filtered = df_filtered[df_filtered[col].astype(str) == val]
+                    print(f"Applied dropdown filter {col}: {val}")  # Debug
+        
+        # Apply column filters (checkbox filters)
+        for column, selected_values in self.active_column_filters.items():
+            if column in df_filtered.columns and selected_values:
+                mask = df_filtered[column].astype(str).isin([str(v) for v in selected_values])
+                df_filtered = df_filtered[mask]
+                print(f"Applied column filter {column}: {selected_values}")  # Debug
+        
+        # Re-add Select and ID columns
+        if not df_filtered.empty:
+            df_filtered.insert(0, 'Select', False)
+            df_filtered.insert(1, 'ID', range(1, len(df_filtered) + 1))
+        else:
+            df_filtered = pd.DataFrame(columns=self.display_columns)
+            
+        self.df = df_filtered
+        self.render_table()
+        print(f"Applied all filters, resulting data shape: {df_filtered.shape}")  # Debug
 
     def create_data_rows(self):
         """Create the data rows section"""
@@ -1746,45 +1811,19 @@ class ExcelActivityApp:
             print(f"Selected rows: {len(self.selected_rows)}")
 
     def apply_dropdown_filters(self, event=None):
-        # Start with original data without Select and ID columns
-        df_original_clean = self.original_df.copy()
-        
-        # Remove Select and ID columns if they exist in original_df
-        if 'Select' in df_original_clean.columns:
-            df_original_clean = df_original_clean.drop('Select', axis=1)
-        if 'ID' in df_original_clean.columns:
-            df_original_clean = df_original_clean.drop('ID', axis=1)
-        
-        df_filtered = df_original_clean.copy()
-        
-        # Apply filters
-        active_filters = {}
-        for col, var in self.filter_vars.items():
-            val = var.get()
-            if val != "Todos" and col not in ["Select", "ID"] and col in df_filtered.columns:
-                df_filtered = df_filtered[df_filtered[col].astype(str) == val]
-                active_filters[col] = val
-        
-        print(f"Applied filters: {active_filters}")  # Debug
-        print(f"Filtered data shape: {df_filtered.shape}")  # Debug
-        
-        # Re-add Select and ID columns
-        if not df_filtered.empty:
-            df_filtered.insert(0, 'Select', False)
-            df_filtered.insert(1, 'ID', range(1, len(df_filtered) + 1))
-        else:
-            df_filtered = pd.DataFrame(columns=self.display_columns)
-            
-        self.df = df_filtered
-        self.render_table()
-        self.update_sum_labels()  # Update totals after filtering
-        self.update_role_summary()  # Update role summary with filtered data
+        """Apply dropdown filters and preserve any existing column filters"""
+        self.apply_all_active_filters()
 
     def reset_filters(self):
         """Reset all filters and restore original project data"""
-        # Clear all filter selections
-        for col, var in self.filter_vars.items():
-            var.set("Todos")
+        # Clear all dropdown filter selections
+        if hasattr(self, 'filter_vars'):
+            for col, var in self.filter_vars.items():
+                var.set("Todos")
+        
+        # Clear all column filters
+        self.active_column_filters.clear()
+        print("Cleared all filters")  # Debug
         
         # Clear row selections
         self.selected_rows.clear()
@@ -1955,8 +1994,19 @@ class ExcelActivityApp:
             messagebox.showinfo("Success", "Service added successfully.")
             
             # Store current filter state BEFORE reloading data
-            current_filters = {col: var.get() for col, var in self.filter_vars.items() if hasattr(var, 'get')}
-            print(f"Saving current filters: {current_filters}")  # Debug
+            current_dropdown_filters = {}
+            current_column_filters = {}
+            
+            # Save dropdown filter state
+            if hasattr(self, 'filter_vars'):
+                current_dropdown_filters = {col: var.get() for col, var in self.filter_vars.items() 
+                                          if hasattr(var, 'get') and var.get() != "Todos"}
+            
+            # Save column filter state (these are already stored in self.active_column_filters)
+            current_column_filters = self.active_column_filters.copy()
+            
+            print(f"Saving current dropdown filters: {current_dropdown_filters}")  # Debug
+            print(f"Saving current column filters: {current_column_filters}")  # Debug
             
             # Clear form fields after successful insert
             for col, entry in self.entries.items():
@@ -1968,18 +2018,25 @@ class ExcelActivityApp:
                         entry.insert(0, "FABSI")
             
             # Reload ALL project data first (this updates self.original_df)
+            self.refreshing_data = True  # Set flag to prevent table rendering
             self.on_project_selected(None)
+            self.refreshing_data = False  # Clear flag
             
-            # Restore filters and apply them
-            for col, value in current_filters.items():
-                if col in self.filter_vars and value != "Todos":
-                    self.filter_vars[col].set(value)
-                    print(f"Restored filter {col}: {value}")  # Debug
+            # Restore dropdown filters
+            if hasattr(self, 'filter_vars'):
+                for col, value in current_dropdown_filters.items():
+                    if col in self.filter_vars:
+                        self.filter_vars[col].set(value)
+                        print(f"Restored dropdown filter {col}: {value}")  # Debug
             
-            # Apply the filters to show only matching records
-            if any(v != "Todos" for v in current_filters.values()):
-                self.apply_dropdown_filters()
-                print("Applied filters after adding record")  # Debug
+            # Restore column filters
+            self.active_column_filters = current_column_filters
+            print(f"Restored column filters: {self.active_column_filters}")  # Debug
+            
+            # Apply all filters to show only matching records
+            if current_dropdown_filters or current_column_filters:
+                self.apply_all_active_filters()
+                print("Applied all filters after adding record")  # Debug
             else:
                 print("No active filters to restore")  # Debug
         except Exception as e:
@@ -2023,22 +2080,41 @@ class ExcelActivityApp:
                     # Clear selection
                     self.selected_rows.clear()
                     
-                    # Store current filter state
-                    current_filters = {col: var.get() for col, var in self.filter_vars.items() if hasattr(var, 'get')}
-                    print(f"Saving current filters before delete: {current_filters}")  # Debug
+                    # Store current filter state BEFORE reloading data
+                    current_dropdown_filters = {}
+                    current_column_filters = {}
+                    
+                    # Save dropdown filter state
+                    if hasattr(self, 'filter_vars'):
+                        current_dropdown_filters = {col: var.get() for col, var in self.filter_vars.items() 
+                                                  if hasattr(var, 'get') and var.get() != "Todos"}
+                    
+                    # Save column filter state
+                    current_column_filters = self.active_column_filters.copy()
+                    
+                    print(f"Saving current dropdown filters before delete: {current_dropdown_filters}")  # Debug
+                    print(f"Saving current column filters before delete: {current_column_filters}")  # Debug
                     
                     # Reload data
+                    self.refreshing_data = True  # Set flag to prevent table rendering
                     self.on_project_selected(None)
+                    self.refreshing_data = False  # Clear flag
                     
-                    # Restore filters
-                    for col, value in current_filters.items():
-                        if col in self.filter_vars and value != "Todos":
-                            self.filter_vars[col].set(value)
+                    # Restore dropdown filters
+                    if hasattr(self, 'filter_vars'):
+                        for col, value in current_dropdown_filters.items():
+                            if col in self.filter_vars:
+                                self.filter_vars[col].set(value)
+                                print(f"Restored dropdown filter {col}: {value}")  # Debug
                     
-                    # Apply filters if any were active
-                    if any(v != "Todos" for v in current_filters.values()):
-                        self.apply_dropdown_filters()
-                        print("Applied filters after delete")  # Debug
+                    # Restore column filters
+                    self.active_column_filters = current_column_filters
+                    print(f"Restored column filters: {self.active_column_filters}")  # Debug
+                    
+                    # Apply all filters
+                    if current_dropdown_filters or current_column_filters:
+                        self.apply_all_active_filters()
+                        print("Applied all filters after delete")  # Debug
                     
                     messagebox.showinfo("Success", f"Deleted {deleted_count} activities successfully from database.")
                     logging.info(f"Successfully deleted {deleted_count} services from database")
