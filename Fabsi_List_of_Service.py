@@ -13,10 +13,243 @@ import os
 import subprocess
 import traceback
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from datetime import datetime, date
+
+try:
+    from tkcalendar import Calendar, DateEntry
+    CALENDAR_AVAILABLE = True
+except ImportError:
+    CALENDAR_AVAILABLE = False
+    print("tkcalendar not available. Installing...")
+    try:
+        subprocess.check_call(["pip", "install", "tkcalendar"])
+        from tkcalendar import Calendar, DateEntry
+        CALENDAR_AVAILABLE = True
+        print("tkcalendar installed successfully!")
+    except Exception as e:
+        print(f"Failed to install tkcalendar: {e}")
+        CALENDAR_AVAILABLE = False
 
 # Set customtkinter appearance
 ctk.set_appearance_mode("light")  # "light" or "dark"
 ctk.set_default_color_theme("blue")  # "blue", "green", "dark-blue"
+
+class CustomDatePicker(ctk.CTkFrame):
+    """Custom date picker widget that integrates with CustomTkinter"""
+    
+    def __init__(self, parent, width=180, **kwargs):
+        super().__init__(parent, **kwargs)
+        
+        self.width = width
+        self.date_var = tk.StringVar()
+        self.date_var.set("")
+        
+        # Create frame for the date picker
+        self.configure(width=width, height=32)
+        
+        # Entry to display selected date
+        self.date_entry = ctk.CTkEntry(
+            self, 
+            width=width-40, 
+            placeholder_text="YYYY-MM-DD",
+            font=ctk.CTkFont(family="Arial", size=11)
+        )
+        self.date_entry.pack(side='left', fill='x', expand=True)
+        
+        # Bind validation and keyboard shortcuts
+        self.date_entry.bind('<FocusOut>', self.validate_date)
+        self.date_entry.bind('<KeyRelease>', self.format_date_input)
+        self.date_entry.bind('<Double-1>', lambda e: self.open_calendar())  # Double-click to open calendar
+        self.date_entry.bind('<F4>', lambda e: self.open_calendar())  # F4 to open calendar (like Excel)
+        
+        # Calendar button
+        self.calendar_btn = ctk.CTkButton(
+            self,
+            text="📅",
+            width=30,
+            height=32,
+            command=self.open_calendar,
+            font=ctk.CTkFont(family="Arial", size=12)
+        )
+        self.calendar_btn.pack(side='right', padx=(5, 0))
+        
+        # Make the frame non-expandable
+        self.pack_propagate(False)
+        
+    def open_calendar(self):
+        """Open calendar popup for date selection"""
+        if not CALENDAR_AVAILABLE:
+            messagebox.showwarning("Calendar Not Available", 
+                                 "Calendar widget is not available. Please enter date manually in YYYY-MM-DD format.")
+            return
+            
+        # Create popup window
+        popup = tk.Toplevel(self)
+        popup.title("Select Date")
+        popup.geometry("350x400")
+        popup.resizable(False, False)
+        popup.transient(self.winfo_toplevel())
+        popup.grab_set()
+        
+        # Center the popup
+        popup.update_idletasks()
+        x = (popup.winfo_screenwidth() // 2) - (350 // 2)
+        y = (popup.winfo_screenheight() // 2) - (400 // 2)
+        popup.geometry(f"350x400+{x}+{y}")
+        
+        # Create main frame for calendar
+        cal_frame = tk.Frame(popup, bg='white')
+        cal_frame.pack(fill='both', expand=True, padx=15, pady=15)
+        
+        # Create calendar widget - this will show the full calendar with years, months, and days
+        cal = Calendar(
+            cal_frame,
+            font=('Arial', 12),
+            selectmode='day',
+            cursor="hand1",
+            background='white',
+            foreground='black',
+            bordercolor='gray',
+            headersbackground='#1976D2',
+            headersforeground='white',
+            selectbackground='#1976D2',
+            selectforeground='white',
+            weekendbackground='#F5F5F5',
+            weekendforeground='#666666',
+            othermonthforeground='#CCCCCC',
+            othermonthbackground='white',
+            showweeknumbers=False,
+            firstweekday='monday',
+            mindate=date(1990, 1, 1),  # Allow dates from 1990
+            maxdate=date(2050, 12, 31),  # Allow dates until 2050
+            date_pattern='yyyy-mm-dd'
+        )
+        cal.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        # Add double-click functionality to calendar
+        def on_date_double_click(event):
+            select_date()
+        
+        cal.bind('<Double-1>', on_date_double_click)
+        
+        # Set current date if entry has a value
+        current_value = self.date_entry.get()
+        if current_value:
+            try:
+                current_date = datetime.strptime(current_value, '%Y-%m-%d').date()
+                cal.selection_set(current_date)
+            except ValueError:
+                # If invalid date, set to today
+                cal.selection_set(date.today())
+        else:
+            # Set to today by default
+            cal.selection_set(date.today())
+        
+        # Buttons frame
+        btn_frame = tk.Frame(popup, bg='white')
+        btn_frame.pack(side='bottom', fill='x', padx=15, pady=15)
+        
+        def select_date():
+            selected_date = cal.selection_get()
+            self.date_entry.delete(0, 'end')
+            self.date_entry.insert(0, selected_date.strftime('%Y-%m-%d'))
+            popup.destroy()
+            
+        def select_today():
+            today = date.today()
+            self.date_entry.delete(0, 'end')
+            self.date_entry.insert(0, today.strftime('%Y-%m-%d'))
+            popup.destroy()
+            
+        def clear_date():
+            self.date_entry.delete(0, 'end')
+            popup.destroy()
+            
+        def cancel():
+            popup.destroy()
+        
+        # Add buttons with improved layout
+        tk.Button(btn_frame, text="Select", command=select_date, 
+                 bg='#1976D2', fg='white', font=('Arial', 10, 'bold'),
+                 width=8, pady=5, relief='raised', bd=2).pack(side='left', padx=2)
+        tk.Button(btn_frame, text="Today", command=select_today,
+                 bg='#4CAF50', fg='white', font=('Arial', 10, 'bold'),
+                 width=8, pady=5, relief='raised', bd=2).pack(side='left', padx=2)
+        tk.Button(btn_frame, text="Clear", command=clear_date,
+                 bg='#FF9800', fg='white', font=('Arial', 10, 'bold'),
+                 width=8, pady=5, relief='raised', bd=2).pack(side='left', padx=2)
+        tk.Button(btn_frame, text="Cancel", command=cancel,
+                 bg='#F44336', fg='white', font=('Arial', 10, 'bold'),
+                 width=8, pady=5, relief='raised', bd=2).pack(side='right', padx=2)
+    
+    def validate_date(self, event=None):
+        """Validate the date format when user types manually"""
+        date_text = self.date_entry.get().strip()
+        if not date_text:
+            return
+            
+        try:
+            # Try to parse the date
+            parsed_date = datetime.strptime(date_text, '%Y-%m-%d')
+            # If successful, ensure it's properly formatted
+            self.date_entry.delete(0, 'end')
+            self.date_entry.insert(0, parsed_date.strftime('%Y-%m-%d'))
+            self.date_entry.configure(text_color="black")
+        except ValueError:
+            # Invalid date format - highlight in red
+            self.date_entry.configure(text_color="red")
+    
+    def format_date_input(self, event=None):
+        """Auto-format date input as user types"""
+        current_text = self.date_entry.get()
+        
+        # Remove any non-digit characters except hyphens
+        cleaned = ''.join(c for c in current_text if c.isdigit() or c == '-')
+        
+        # Auto-add hyphens in the right places
+        if len(cleaned) >= 4 and cleaned[4] != '-':
+            cleaned = cleaned[:4] + '-' + cleaned[4:]
+        if len(cleaned) >= 7 and cleaned[7] != '-':
+            cleaned = cleaned[:7] + '-' + cleaned[7:]
+        
+        # Limit to 10 characters (YYYY-MM-DD)
+        if len(cleaned) > 10:
+            cleaned = cleaned[:10]
+        
+        # Update the entry if it changed
+        if cleaned != current_text:
+            cursor_pos = self.date_entry.index(tk.INSERT)
+            self.date_entry.delete(0, 'end')
+            self.date_entry.insert(0, cleaned)
+            # Try to maintain cursor position
+            try:
+                self.date_entry.icursor(min(cursor_pos, len(cleaned)))
+            except:
+                pass
+    
+    def get(self):
+        """Get the current date value"""
+        return self.date_entry.get()
+    
+    def set(self, value):
+        """Set the date value"""
+        self.date_entry.delete(0, 'end')
+        if value:
+            self.date_entry.insert(0, str(value))
+        # Validate after setting
+        self.validate_date()
+    
+    def delete(self, start, end=None):
+        """Delete content from the entry"""
+        if end is None:
+            end = 'end'
+        self.date_entry.delete(start, end)
+    
+    def insert(self, index, value):
+        """Insert value at index"""
+        self.date_entry.insert(index, value)
+        # Validate after inserting
+        self.validate_date()
 
 class ExcelActivityApp:
     def __init__(self, root):
@@ -897,12 +1130,17 @@ class ExcelActivityApp:
                     
                     self.entries[col] = widget
                     widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
-                elif col in ["Department", "Estimated internal", "Estimated external", "Start date", "Due date"]:
-                    # Use entry field for these columns
+                elif col in ["Department", "Estimated internal", "Estimated external"]:
+                    # Use entry field for these columns (but not dates)
                     widget = ctk.CTkEntry(self.entry_frame, width=width,
                                         font=ctk.CTkFont(family="Arial", size=11))
                     if col == "Department":
                         widget.insert(0, "FABSI")
+                    self.entries[col] = widget
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                elif col in ["Start date", "Due date"]:
+                    # Use custom date picker for date fields
+                    widget = CustomDatePicker(self.entry_frame, width=width)
                     self.entries[col] = widget
                     widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
                 elif col == "Notes":
