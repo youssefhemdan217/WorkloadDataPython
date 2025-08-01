@@ -790,17 +790,17 @@ class ExcelActivityApp:
                 row_values = []
                 for col in self.df.columns:
                     if col == "Select":
-                        row_values.append("📊")
-                    elif col == "ID":
-                        row_values.append("TOTAL")
-                    elif col == "Activities":
-                        row_values.append("📈 TOTAL PROJECT HOURS")
+                        row_values.append("")
+                    # elif col == "ID":
+                    #     row_values.append("TOTAL")
+                    # elif col == "Activities":
+                    #     row_values.append("📈 TOTAL PROJECT HOURS")
                     elif col == "Estimated internal":
                         row_values.append(f"{total_internal:,.2f}")
                     elif col == "Estimated external":
                         row_values.append(f"{total_external:,.2f}")
-                    elif col in ["Department"]:
-                        row_values.append("ALL")
+                    # elif col in ["Department"]:
+                    #     row_values.append("ALL")
                     else:
                         row_values.append("")
                 
@@ -1332,17 +1332,17 @@ class ExcelActivityApp:
         row_values = []
         for col in self.df.columns:
             if col == "Select":
-                row_values.append("📊")  # Special icon for totals row
-            elif col == "ID":
-                row_values.append("TOTAL")
-            elif col == "Activities":
-                row_values.append("📈 TOTAL PROJECT HOURS")
+                row_values.append("")  # Special icon for totals row
+            # elif col == "ID":
+            #     row_values.append("TOTAL")
+            # elif col == "Activities":
+            #     row_values.append("📈 TOTAL PROJECT HOURS")
             elif col == "Estimated internal":
                 row_values.append(f"{total_internal:,.2f}")
             elif col == "Estimated external":
                 row_values.append(f"{total_external:,.2f}")
-            elif col in ["Department"]:
-                row_values.append("ALL")
+            # elif col in ["Department"]:
+            #     row_values.append("ALL")
             else:
                 row_values.append("")  # Empty for other columns
         
