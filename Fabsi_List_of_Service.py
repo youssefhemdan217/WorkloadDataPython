@@ -14,6 +14,7 @@ import subprocess
 import traceback
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from datetime import datetime, date
+from PIL import Image, ImageTk
 
 try:
     from tkcalendar import Calendar, DateEntry
@@ -400,6 +401,26 @@ class ExcelActivityApp:
         self.edit_popup = None
         self.dark_mode = False  # Track dark mode state
 
+    def load_logo_image(self, image_path, width, height):
+        """Load and resize logo image for display"""
+        try:
+            if os.path.exists(image_path):
+                # Load and resize the image
+                pil_image = Image.open(image_path)
+                # Convert to RGBA if not already
+                if pil_image.mode != 'RGBA':
+                    pil_image = pil_image.convert('RGBA')
+                # Resize maintaining aspect ratio
+                pil_image.thumbnail((width, height), Image.Resampling.LANCZOS)
+                # Convert to CTkImage
+                return ctk.CTkImage(light_image=pil_image, dark_image=pil_image, size=(width, height))
+            else:
+                print(f"Logo image not found: {image_path}")
+                return None
+        except Exception as e:
+            print(f"Error loading logo image {image_path}: {e}")
+            return None
+
     def toggle_dark_mode(self):
         """Toggle between light and dark mode"""
         self.dark_mode = not self.dark_mode
@@ -414,10 +435,19 @@ class ExcelActivityApp:
         header_frame.pack(fill='x', padx=10, pady=(2, 3))
         header_frame.pack_propagate(False)
 
-        # Left logo placeholder - much smaller size
-        left_logo_frame = ctk.CTkFrame(header_frame, width=50, height=30, corner_radius=5)
+        # Left logo (Saipem) - much smaller size
+        left_logo_frame = ctk.CTkFrame(header_frame, width=60, height=35, corner_radius=5)
         left_logo_frame.pack(side='left', padx=5)
-        left_logo_label = ctk.CTkLabel(left_logo_frame, text="Logo 1", font=("Arial", 7))
+        left_logo_frame.pack_propagate(False)
+        
+        # Load Saipem logo
+        saipem_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'saipem_logo.png')
+        saipem_logo_image = self.load_logo_image(saipem_logo_path, 55, 30)
+        
+        if saipem_logo_image:
+            left_logo_label = ctk.CTkLabel(left_logo_frame, image=saipem_logo_image, text="")
+        else:
+            left_logo_label = ctk.CTkLabel(left_logo_frame, text="SAIPEM", font=("Arial", 7), text_color="#003d52")
         left_logo_label.pack(expand=True)
 
         # Title in center - smaller font but still readable
@@ -431,10 +461,19 @@ class ExcelActivityApp:
         )
         title_label.pack(expand=True)
 
-        # Right logo placeholder - much smaller size
-        right_logo_frame = ctk.CTkFrame(header_frame, width=50, height=30, corner_radius=5)
+        # Right logo (FABSI) - much smaller size
+        right_logo_frame = ctk.CTkFrame(header_frame, width=60, height=35, corner_radius=5)
         right_logo_frame.pack(side='right', padx=5)
-        right_logo_label = ctk.CTkLabel(right_logo_frame, text="Logo 2", font=("Arial", 7))
+        right_logo_frame.pack_propagate(False)
+        
+        # Load FABSI logo
+        fabsi_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'fabsi_logo.png')
+        fabsi_logo_image = self.load_logo_image(fabsi_logo_path, 55, 30)
+        
+        if fabsi_logo_image:
+            right_logo_label = ctk.CTkLabel(right_logo_frame, image=fabsi_logo_image, text="")
+        else:
+            right_logo_label = ctk.CTkLabel(right_logo_frame, text="FABSI", font=("Arial", 7), text_color="#ef8827")
         right_logo_label.pack(expand=True)
 
         # Add a separator - thinner

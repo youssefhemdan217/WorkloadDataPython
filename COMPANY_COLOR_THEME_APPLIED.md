@@ -1,7 +1,7 @@
-# Company Color Theme Implementation
+# Company Color Theme & Logo Implementation
 
-## Applied Color Scheme
-Your application has been updated to use your company's unified color scheme:
+## Applied Color Scheme & Branding
+Your application has been updated to use your company's unified color scheme and official logos:
 
 ### Company Colors Used:
 - **Primary Dark Blue**: `#003d52` (Main branding color)
@@ -12,12 +12,19 @@ Your application has been updated to use your company's unified color scheme:
 - **White**: `white` (Text/Backgrounds)
 - **Black**: `black` (Text/Contrast)
 
+### Company Logos Integrated:
+- **Left Header**: Saipem company logo (`photos/saipem_logo.png`)
+- **Right Header**: FABSI project logo (`photos/fabsi_logo.png`)
+- **Fallback Text**: Company names in brand colors if images fail to load
+
 ## Color Mapping Summary
 
 ### 🎨 **Main Interface Elements**
 | Element | Old Color | New Color | Usage |
 |---------|-----------|-----------|-------|
 | App Title | `#1976D2` | `#003d52` | Main application title |
+| Left Logo | "Logo 1" text | Saipem company logo | Company branding |
+| Right Logo | "Logo 2" text | FABSI project logo | Project branding |
 | Separators | `#BDBDBD` | `#22505f` | Visual dividers |
 
 ### 🔘 **Button Colors**
@@ -124,15 +131,26 @@ Your application has been updated to use your company's unified color scheme:
 
 1. **Brand Consistency**: All colors now align with your company's brand identity
 2. **Professional Appearance**: Cohesive color scheme throughout the application
-3. **Improved UX**: Logical color hierarchy (primary, secondary, accent colors)
-4. **Accessibility**: Maintained contrast ratios for readability
-5. **Visual Clarity**: Clear distinction between different element types
+3. **Official Branding**: Real company logos (Saipem & FABSI) integrated in header
+4. **Improved UX**: Logical color hierarchy (primary, secondary, accent colors)
+5. **Accessibility**: Maintained contrast ratios for readability
+6. **Visual Clarity**: Clear distinction between different element types
+7. **Logo Integration**: Automatic image loading with text fallbacks for reliability
 
-## 📝 **Notes**
+## 📝 **Technical Implementation Notes**
+- Added PIL/Pillow for image processing and logo display
+- Company logos stored in `photos/` directory for organization
+- Intelligent image resizing maintains aspect ratios
+- Fallback text displays if logo images unavailable
+- Logo frames sized appropriately for compact header design
 - All color changes preserve functionality while improving visual consistency
 - Text contrast maintained for accessibility (important for blind client)
 - Color hierarchy follows UI best practices
 - Hover states provide clear user feedback
 - Export functions maintain brand colors in generated documents
 
-Your application now presents a unified, professional appearance that reflects your company's brand identity while maintaining excellent usability and accessibility standards.
+## 📁 **Logo Files Added**
+- `photos/saipem_logo.png` - Saipem company logo (left header)
+- `photos/fabsi_logo.png` - FABSI project logo (right header)
+
+Your application now presents a unified, professional appearance that reflects your company's brand identity with official logos while maintaining excellent usability and accessibility standards.
