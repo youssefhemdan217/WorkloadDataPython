@@ -109,14 +109,14 @@ class CustomDatePicker(ctk.CTkFrame):
             cursor="hand1",
             background='white',
             foreground='black',
-            bordercolor='gray',
-            headersbackground='#1976D2',
+            bordercolor='#22505f',
+            headersbackground='#003d52',
             headersforeground='white',
-            selectbackground='#1976D2',
+            selectbackground='#ef8827',
             selectforeground='white',
-            weekendbackground='#F5F5F5',
-            weekendforeground='#666666',
-            othermonthforeground='#CCCCCC',
+            weekendbackground='#5b93a4',
+            weekendforeground='white',
+            othermonthforeground='#255c7b',
             othermonthbackground='white',
             showweeknumbers=False,
             firstweekday='monday',
@@ -170,16 +170,16 @@ class CustomDatePicker(ctk.CTkFrame):
         
         # Add buttons with improved layout
         tk.Button(btn_frame, text="Select", command=select_date, 
-                 bg='#1976D2', fg='white', font=('Arial', 10, 'bold'),
+                 bg='#003d52', fg='white', font=('Arial', 10, 'bold'),
                  width=8, pady=5, relief='raised', bd=2).pack(side='left', padx=2)
         tk.Button(btn_frame, text="Today", command=select_today,
-                 bg='#4CAF50', fg='white', font=('Arial', 10, 'bold'),
+                 bg='#5b93a4', fg='white', font=('Arial', 10, 'bold'),
                  width=8, pady=5, relief='raised', bd=2).pack(side='left', padx=2)
         tk.Button(btn_frame, text="Clear", command=clear_date,
-                 bg='#FF9800', fg='white', font=('Arial', 10, 'bold'),
+                 bg='#ef8827', fg='white', font=('Arial', 10, 'bold'),
                  width=8, pady=5, relief='raised', bd=2).pack(side='left', padx=2)
         tk.Button(btn_frame, text="Cancel", command=cancel,
-                 bg='#F44336', fg='white', font=('Arial', 10, 'bold'),
+                 bg='#255c7b', fg='white', font=('Arial', 10, 'bold'),
                  width=8, pady=5, relief='raised', bd=2).pack(side='right', padx=2)
     
     def validate_date(self, event=None):
@@ -427,7 +427,7 @@ class ExcelActivityApp:
             title_frame, 
             text="FABSI - List of Service",
             font=ctk.CTkFont(family="Arial", size=16, weight="bold"),
-            text_color="#1976D2"
+            text_color="#003d52"
         )
         title_label.pack(expand=True)
 
@@ -438,7 +438,7 @@ class ExcelActivityApp:
         right_logo_label.pack(expand=True)
 
         # Add a separator - thinner
-        separator_frame = ctk.CTkFrame(self.root, height=1, fg_color="#BDBDBD")
+        separator_frame = ctk.CTkFrame(self.root, height=1, fg_color="#22505f")
         separator_frame.pack(fill='x', padx=10, pady=(0, 3))
 
         # Main content area
@@ -471,19 +471,19 @@ class ExcelActivityApp:
         # Left side buttons
         ctk.CTkButton(button_frame, text="Professional Role Summary", 
                      command=self.open_role_summary_modal, 
-                     fg_color="#1976D2", hover_color="#1565C0", width=160).pack(side='left', padx=(0, 10))
+                     fg_color="#003d52", hover_color="#255c7b", width=160).pack(side='left', padx=(0, 10))
         ctk.CTkButton(button_frame, text="🔄 Clear All Filters", 
                      command=self.reset_filters, 
-                     fg_color="#FF9800", hover_color="#F57C00", width=130).pack(side='left', padx=(0, 10))
+                     fg_color="#ef8827", hover_color="#22505f", width=130).pack(side='left', padx=(0, 10))
         ctk.CTkButton(button_frame, text="🗑️ Delete Selected", 
                      command=self.delete_selected, 
-                     fg_color="#F44336", hover_color="#D32F2F", width=130).pack(side='left', padx=(0, 10))
+                     fg_color="#255c7b", hover_color="#22505f", width=130).pack(side='left', padx=(0, 10))
         ctk.CTkButton(button_frame, text="✅ Select All", 
                      command=self.select_all_rows, 
-                     fg_color="#9C27B0", hover_color="#7B1FA2", width=100).pack(side='left', padx=(0, 10))
+                     fg_color="#5b93a4", hover_color="#255c7b", width=100).pack(side='left', padx=(0, 10))
         ctk.CTkButton(button_frame, text="❌ Deselect All", 
                      command=self.deselect_all_rows, 
-                     fg_color="#607D8B", hover_color="#455A64", width=110).pack(side='left', padx=(0, 10))
+                     fg_color="#22505f", hover_color="#003d52", width=110).pack(side='left', padx=(0, 10))
         
         # Export buttons
         export_frame = ctk.CTkFrame(button_frame, corner_radius=8)
@@ -494,24 +494,24 @@ class ExcelActivityApp:
         
         ctk.CTkButton(export_frame, text="📊 Excel", 
                      command=self.save_to_excel,
-                     fg_color="#217346", hover_color="#1e6b40",
+                     fg_color="#5b93a4", hover_color="#255c7b",
                      width=80).pack(side='left', padx=5, pady=5)
         
         ctk.CTkButton(export_frame, text="📄 PDF",
                      command=self.save_to_pdf,
-                     fg_color="#DB4437", hover_color="#c23321",
+                     fg_color="#255c7b", hover_color="#22505f",
                      width=80).pack(side='left', padx=5, pady=5)
         
         # Right side buttons
         ctk.CTkButton(button_frame, text="🌙 Dark Mode", 
                      command=self.toggle_dark_mode, 
-                     fg_color="#424242", hover_color="#303030", width=100).pack(side='right', padx=(0, 10))
+                     fg_color="#22505f", hover_color="#003d52", width=100).pack(side='right', padx=(0, 10))
         ctk.CTkButton(button_frame, text="Agregar Actividad", 
                      command=self.add_row, 
-                     fg_color="#388E3C", hover_color="#2E7D32", width=140).pack(side='right')
+                     fg_color="#5b93a4", hover_color="#255c7b", width=140).pack(side='right')
         ctk.CTkButton(button_frame, text="Open File", 
                      command=self.open_file, 
-                     fg_color="#0288D1", hover_color="#0277BD", width=100).pack(side='right', padx=(0, 10))
+                     fg_color="#003d52", hover_color="#255c7b", width=100).pack(side='right', padx=(0, 10))
 
         # Remove the always-visible small table from the main UI
         # self.role_summary_frame = ctk.CTkFrame(summary_right)
@@ -519,7 +519,7 @@ class ExcelActivityApp:
         # self.role_summary_tree = ...
 
         # Add a visual separator between form and table - thinner
-        separator = ctk.CTkFrame(self.root, height=1, fg_color="#BDBDBD")
+        separator = ctk.CTkFrame(self.root, height=1, fg_color="#22505f")
         separator.pack(fill='x', padx=10, pady=2)
 
         # Create the main table frame (always present) - reduced padding
@@ -539,11 +539,11 @@ class ExcelActivityApp:
         bottom_frame = ctk.CTkFrame(self.root, fg_color="transparent")
         bottom_frame.pack(pady=5, fill='x')
         ctk.CTkButton(bottom_frame, text="Reset Filtros", command=self.reset_filters,
-                     fg_color="#FF9800", hover_color="#F57C00").pack(side='left', padx=10)
+                     fg_color="#ef8827", hover_color="#22505f").pack(side='left', padx=10)
         ctk.CTkButton(bottom_frame, text="Save & Print in Excel", command=self.save_to_excel,
-                     fg_color="#217346", hover_color="#1e6b40").pack(side='right', padx=10)
+                     fg_color="#5b93a4", hover_color="#255c7b").pack(side='right', padx=10)
         ctk.CTkButton(bottom_frame, text="Save & Print in PDF", command=self.save_to_pdf,
-                     fg_color="#DB4437", hover_color="#c23321").pack(side='right', padx=10)
+                     fg_color="#255c7b", hover_color="#22505f").pack(side='right', padx=10)
 
     def on_checkbox_click(self, event):
         """Handle checkbox column clicks for row selection"""
@@ -597,7 +597,7 @@ class ExcelActivityApp:
             self.role_summary_modal,
             text="Total Hours per Professional Role",
             font=ctk.CTkFont(family="Arial", size=16, weight="bold"),
-            text_color="#1976D2"
+            text_color="#003d52"
         )
         title_label.pack(pady=(20, 15))
 
@@ -623,7 +623,7 @@ class ExcelActivityApp:
                        fieldbackground="white")
         style.configure("Summary.Treeview.Heading",
                        font=('Arial', 9, 'bold'),
-                       background="#E3F2FD")
+                       background="#5b93a4")
 
         # Configure headers
         self.role_summary_tree.heading("Professional Role", text="Professional Role",
@@ -651,8 +651,8 @@ class ExcelActivityApp:
             self.role_summary_modal,
             text="Close",
             command=self.role_summary_modal.destroy,
-            fg_color="#1976D2",
-            hover_color="#1565C0",
+            fg_color="#003d52",
+            hover_color="#255c7b",
             width=120,
             height=35,
             font=ctk.CTkFont(family="Arial", size=12)
@@ -853,7 +853,7 @@ class ExcelActivityApp:
                 if len(summary) > 0:
                     self.role_summary_tree.insert("", "end", values=("TOTAL", f"{total_hours:,.0f}"),
                                                 tags=('total',))
-                    self.role_summary_tree.tag_configure('total', background='#E3F2FD',
+                    self.role_summary_tree.tag_configure('total', background='#5b93a4',
                                                        font=('Arial', 9, 'bold'))
             except Exception as e:
                 print(f"Error updating role summary: {e}")
@@ -1283,7 +1283,7 @@ class ExcelActivityApp:
                        font=('Arial', 10))  # Keep font size readable for blind client
         
         style.configure("Treeview.Heading",
-                       background="#D9D9D9",
+                       background="#5b93a4",
                        font=('Arial', 9, 'bold'))
         
         # Insert data
@@ -1300,9 +1300,9 @@ class ExcelActivityApp:
         
         # Configure row colors
         self.tree.tag_configure('oddrow', background='white')
-        self.tree.tag_configure('evenrow', background='#F8F8F8')
+        self.tree.tag_configure('evenrow', background='#5b93a4')
         # Configure summation row with bright colors
-        self.tree.tag_configure('total_row', background='#FFD700', foreground='#000000', font=('Arial', 12, 'bold'))
+        self.tree.tag_configure('total_row', background='#ef8827', foreground='black', font=('Arial', 12, 'bold'))
         
         # Bind events
         self.tree.bind("<Double-1>", self.edit_cell)
@@ -1398,7 +1398,7 @@ class ExcelActivityApp:
         }
         
         header_height = 35  # Further reduced height
-        header_frame = tk.Frame(self.scrollable_frame, height=header_height, bg="#D9D9D9", relief='groove', bd=1)
+        header_frame = tk.Frame(self.scrollable_frame, height=header_height, bg="#5b93a4", relief='groove', bd=1)
         header_frame.pack(fill='x', pady=(0,2))
         header_frame.pack_propagate(False)
         
@@ -1411,24 +1411,24 @@ class ExcelActivityApp:
             txt = header_map.get(col, col)
             width = column_widths.get(col, 100)
             
-            cell_frame = tk.Frame(header_frame, width=width, height=header_height, bg="#D9D9D9", 
+            cell_frame = tk.Frame(header_frame, width=width, height=header_height, bg="#5b93a4", 
                                 relief='groove', bd=1)
             cell_frame.place(x=x_offset, y=0, width=width, height=header_height)
             cell_frame.pack_propagate(False)
             
             # Header container with text and filter button
-            header_container = tk.Frame(cell_frame, bg="#D9D9D9")
+            header_container = tk.Frame(cell_frame, bg="#5b93a4")
             header_container.pack(fill='x', expand=True, pady=(2,0))
             
             # Header text label
-            header_label = tk.Label(header_container, text=txt, bg="#D9D9D9", 
+            header_label = tk.Label(header_container, text=txt, bg="#5b93a4", 
                                   font=('Arial', 8, 'bold'), anchor='w')
             header_label.pack(side='left', padx=(2,0))
             
             # Filter button - only add for non-Select and non-ID columns
             if col not in ["Select", "ID"]:
                 filter_btn = tk.Button(header_container, text="↓", font=('Arial', 7),
-                                     width=2, height=1, relief='flat', bg="#D9D9D9",
+                                     width=2, height=1, relief='flat', bg="#5b93a4",
                                      command=lambda c=col: self.show_column_filter(c))
                 filter_btn.pack(side='right', padx=(0,1))
                 self.filter_menus[col] = filter_btn
@@ -1474,7 +1474,7 @@ class ExcelActivityApp:
                      height=30, font=ctk.CTkFont(size=10)).pack(fill='x', pady=2)
         
         # Separator
-        separator_frame = ctk.CTkFrame(main_frame, height=2, fg_color="#BDBDBD")
+        separator_frame = ctk.CTkFrame(main_frame, height=2, fg_color="#22505f")
         separator_frame.pack(fill='x', pady=5)
         
         # Filter options frame
@@ -1525,15 +1525,15 @@ class ExcelActivityApp:
         # Pack buttons with equal spacing
         ctk.CTkButton(btn_frame, text="Apply", 
                      command=lambda: self.apply_column_filter(column),
-                     fg_color='#1976D2', hover_color='#1565C0',
+                     fg_color='#003d52', hover_color='#255c7b',
                      width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
         ctk.CTkButton(btn_frame, text="Clear",
                      command=lambda: self.clear_column_filter(column),
-                     fg_color='#FF9800', hover_color='#F57C00',
+                     fg_color='#ef8827', hover_color='#22505f',
                      width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
         ctk.CTkButton(btn_frame, text="Cancel",
                      command=self.filter_popup.destroy,
-                     fg_color='#F44336', hover_color='#D32F2F',
+                     fg_color='#255c7b', hover_color='#22505f',
                      width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
         
         # Handle click outside popup
@@ -1696,7 +1696,7 @@ class ExcelActivityApp:
         
         # Row styling
         self.tree.tag_configure('oddrow', background='white')
-        self.tree.tag_configure('evenrow', background='#F8F8F8')
+        self.tree.tag_configure('evenrow', background='#5b93a4')
 
     def show_filter_menu(self, column):
         """Show Excel-like filter menu for the selected column"""
@@ -1744,12 +1744,12 @@ class ExcelActivityApp:
         
         tk.Button(sort_btn_frame, text="↑ Sort A to Z", 
                  command=lambda: self.apply_sort(column, True),
-                 bg='#E8F4FD', relief='flat', font=('Arial', 9),
+                 bg='#5b93a4', relief='flat', font=('Arial', 9),
                  width=15, pady=5).pack(side='left', padx=(0, 5))
         
         tk.Button(sort_btn_frame, text="↓ Sort Z to A",
                  command=lambda: self.apply_sort(column, False), 
-                 bg='#E8F4FD', relief='flat', font=('Arial', 9),
+                 bg='#5b93a4', relief='flat', font=('Arial', 9),
                  width=15, pady=5).pack(side='left')
         
         # Filter section with FIXED height to ensure buttons show
@@ -1851,31 +1851,31 @@ class ExcelActivityApp:
         self.search_var.trace('w', update_search)
         
         # BUTTONS SECTION - Always visible at the bottom of main_frame
-        separator = tk.Frame(main_frame, height=2, bg='#CCCCCC')
+        separator = tk.Frame(main_frame, height=2, bg='#22505f')
         separator.pack(fill='x', pady=(10, 5))
         
         # Button frame - FIXED at bottom
-        btn_frame = tk.Frame(main_frame, bg='#F0F0F0', relief='raised', bd=2, height=80)
+        btn_frame = tk.Frame(main_frame, bg='#5b93a4', relief='raised', bd=2, height=80)
         btn_frame.pack(fill='x', side='bottom')
         btn_frame.pack_propagate(False)  # Prevent resizing
         
         # Button container for centered layout
-        btn_container = tk.Frame(btn_frame, bg='#F0F0F0')
+        btn_container = tk.Frame(btn_frame, bg='#5b93a4')
         btn_container.pack(expand=True, pady=15)
         
         # Buttons with improved styling and clear visibility
         apply_btn = tk.Button(btn_container, text="✅ Apply Filter", 
                              command=self.apply_filter,
-                             bg='#4CAF50', fg='white', font=('Arial', 10, 'bold'),
+                             bg='#003d52', fg='white', font=('Arial', 10, 'bold'),
                              width=15, height=2, relief='raised', bd=3,
-                             activebackground='#45A049')
+                             activebackground='#255c7b')
         apply_btn.pack(side='left', padx=8)
         
         clear_btn = tk.Button(btn_container, text="🔄 Clear Filter",
                              command=lambda: self.clear_filter(column),
-                             bg='#FF9800', fg='white', font=('Arial', 10, 'bold'),
+                             bg='#ef8827', fg='white', font=('Arial', 10, 'bold'),
                              width=15, height=2, relief='raised', bd=3,
-                             activebackground='#F57C00')
+                             activebackground='#22505f')
         clear_btn.pack(side='left', padx=8)
         
         # cancel_btn = tk.Button(btn_container, text="❌ Cancel",
@@ -2045,48 +2045,48 @@ class ExcelActivityApp:
         title_label = tk.Label(self.totals_display_frame, 
                               text="� ATTENTION: TOTAL HOURS SUMMARY 🚨", 
                               font=('Arial', 20, 'bold'),
-                              bg='#FF0000',
+                              bg='#22505f',
                               fg='white')
         title_label.pack(pady=(15, 20))
         
         # Create styled containers for totals with MAXIMUM visibility
-        totals_container = tk.Frame(self.totals_display_frame, bg='#FF0000')
+        totals_container = tk.Frame(self.totals_display_frame, bg='#22505f')
         totals_container.pack(expand=True, fill='both', padx=30)
         
         # Internal total box - GIGANTIC and impossible to miss
-        internal_frame = tk.Frame(totals_container, bg='#00FF00', relief='raised', bd=10, height=80)
+        internal_frame = tk.Frame(totals_container, bg='#5b93a4', relief='raised', bd=10, height=80)
         internal_frame.pack(side='left', padx=30, pady=15, expand=True, fill='both')
         
         internal_label = tk.Label(internal_frame, 
                                 text="💼 TOTAL INTERNAL HOURS:", 
                                 font=('Arial', 16, 'bold'),
-                                bg='#00FF00',
-                                fg='black')
+                                bg='#5b93a4',
+                                fg='white')
         internal_label.pack(side='left', padx=25, pady=20)
         
         self.total_label_internal = tk.Label(internal_frame,
                                            text="0.00",
                                            font=('Arial', 24, 'bold'),
-                                           bg='#00FF00',
-                                           fg='red')
+                                           bg='#5b93a4',
+                                           fg='white')
         self.total_label_internal.pack(side='left', padx=(15, 25), pady=20)
         
         # External total box - GIGANTIC and impossible to miss
-        external_frame = tk.Frame(totals_container, bg='#0000FF', relief='raised', bd=10, height=80)
+        external_frame = tk.Frame(totals_container, bg='#003d52', relief='raised', bd=10, height=80)
         external_frame.pack(side='left', padx=30, pady=15, expand=True, fill='both')
         
         external_label = tk.Label(external_frame,
                                 text="🏢 TOTAL EXTERNAL HOURS:",
                                 font=('Arial', 16, 'bold'),
-                                bg='#0000FF',
+                                bg='#003d52',
                                 fg='white')
         external_label.pack(side='left', padx=25, pady=20)
         
         self.total_label_external = tk.Label(external_frame,
                                            text="0.00", 
                                            font=('Arial', 24, 'bold'),
-                                           bg='#0000FF',
-                                           fg='yellow')
+                                           bg='#003d52',
+                                           fg='white')
         self.total_label_external.pack(side='left', padx=(15, 25), pady=20)
 
     def on_checkbox_click(self, event):
@@ -2534,7 +2534,7 @@ class ExcelActivityApp:
             # Table style
             table_style = TableStyle([
                 # Header style
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#D9D9D9')),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5b93a4')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
                 ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -2557,7 +2557,7 @@ class ExcelActivityApp:
             # Alternate row colors
             for row in range(1, len(data)):
                 if row % 2 == 0:
-                    table_style.add('BACKGROUND', (0, row), (-1, row), colors.HexColor('#F8F8F8'))
+                    table_style.add('BACKGROUND', (0, row), (-1, row), colors.HexColor('#255c7b'))
                 else:
                     table_style.add('BACKGROUND', (0, row), (-1, row), colors.white)
             
