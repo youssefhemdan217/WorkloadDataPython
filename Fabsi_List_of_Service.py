@@ -1071,22 +1071,22 @@ class ExcelActivityApp:
         self.entry_frame.grid_columnconfigure(2, weight=4)  # Activities (double width)
         self.entry_frame.grid_columnconfigure(3, weight=2)  # Title
         
-        # Define field widths
+        # Define field widths - optimized to match table columns
         field_widths = {
-            "Stick-Built": 200,
-            "Module": 200,
-            "Activities": 400,  # Much wider for Activities
-            "Title": 250,
-            "Technical Unit": 250,
-            "Assigned to": 250,
-            "Progress": 180,
-            "Professional Role": 250,
-            "Department": 180,
-            "Estimated internal": 180,
-            "Estimated external": 180,
-            "Start date": 180,
-            "Due date": 180,
-            "Notes": 500  # Wider for Notes
+            "Stick-Built": 180,
+            "Module": 180,
+            "Activities": 320,  # Balanced width for Activities
+            "Title": 220,
+            "Technical Unit": 220,
+            "Assigned to": 220,
+            "Progress": 160,
+            "Professional Role": 220,
+            "Department": 160,
+            "Estimated internal": 160,
+            "Estimated external": 160,
+            "Start date": 160,
+            "Due date": 160,
+            "Notes": 400  # Reasonable width for Notes
         }
         
         for row_idx, row in enumerate(fields):
@@ -1224,24 +1224,24 @@ class ExcelActivityApp:
         tree_frame.grid_columnconfigure(0, weight=1)
         tree_frame.grid_rowconfigure(0, weight=1)
         
-        # Configure headers and columns with increased widths
+        # Configure headers and columns with optimized widths for better fit
         column_widths = {
-            "Select": 45,               # Increased for better checkbox visibility
-            "ID": 50,                  # Increased for larger numbers
-            "Stick-Built": 100,        # Increased for longer names
-            "Module": 100,             # Increased for longer module names
-            "Activities": 400,          # Significantly increased for full activity descriptions
-            "Title": 150,              # Increased for full titles
-            "Department": 100,         # Increased for department names
-            "Technical Unit": 150,     # Increased for longer unit names
-            "Assigned to": 150,        # Increased for full names
-            "Progress": 100,           # Increased for progress status
-            "Estimated internal": 100,  # Increased for larger numbers
-            "Estimated external": 100,  # Increased for larger numbers
-            "Start date": 100,         # Increased for full date format
-            "Due date": 100,           # Increased for full date format
-            "Notes": 300,              # Significantly increased for full notes
-            "Professional Role": 200    # Increased for full role names
+            "Select": 40,               # Compact checkbox visibility
+            "ID": 45,                  # Compact ID numbers
+            "Stick-Built": 85,         # Compact but readable
+            "Module": 85,              # Compact but readable
+            "Activities": 280,         # Reduced from 400 but still readable
+            "Title": 120,              # Reduced but adequate for titles
+            "Department": 80,          # Compact department names
+            "Technical Unit": 120,     # Compact but readable
+            "Assigned to": 120,        # Compact but readable names
+            "Progress": 80,            # Compact progress status
+            "Estimated internal": 85,  # Compact numbers with decimals
+            "Estimated external": 85,  # Compact numbers with decimals
+            "Start date": 85,          # Compact date format
+            "Due date": 85,            # Compact date format
+            "Notes": 200,              # Reduced from 300 but still useful
+            "Professional Role": 150   # Reduced but readable role names
         }
         
         header_map = {
@@ -1271,7 +1271,7 @@ class ExcelActivityApp:
             width = column_widths.get(col, 100)
             anchor = 'w' if col in ["Activities", "Title", "Notes", "Technical Unit", 
                                   "Assigned to", "Professional Role", "Department"] else 'center'
-            self.tree.column(col, width=width, minwidth=50, stretch=True, anchor=anchor)
+            self.tree.column(col, width=width, minwidth=40, stretch=True, anchor=anchor)
         
         # Style the treeview with reduced row height to show more rows
         style = ttk.Style()
@@ -1379,22 +1379,22 @@ class ExcelActivityApp:
         }
         
         column_widths = {
-            "Select": 35,
-            "ID": 35,
-            "Stick-Built": 100,
-            "Module": 100,
-            "Activities": 500,    # Significantly increased for better readability
-            "Title": 150,
-            "Department": 100,
-            "Technical Unit": 180,
-            "Assigned to": 150,
+            "Select": 40,
+            "ID": 45,
+            "Stick-Built": 85,
+            "Module": 85,
+            "Activities": 280,    # Reduced but still readable
+            "Title": 120,
+            "Department": 80,
+            "Technical Unit": 120,
+            "Assigned to": 120,
             "Progress": 80,
-            "Estimated internal": 100,
-            "Estimated external": 100,
-            "Start date": 80,
-            "Due date": 80,
-            "Notes": 250,
-            "Professional Role": 180
+            "Estimated internal": 85,
+            "Estimated external": 85,
+            "Start date": 85,
+            "Due date": 85,
+            "Notes": 200,
+            "Professional Role": 150
         }
         
         header_height = 35  # Further reduced height
@@ -1672,13 +1672,13 @@ class ExcelActivityApp:
         self.tree.bind("<Double-1>", self.edit_cell)
         self.tree.bind("<Button-1>", self.on_checkbox_click)
         
-        # Column widths (updated to match header)
+        # Column widths (optimized for better table fit)
         column_widths = {
-            "Select": 35, "ID": 35, "Stick-Built": 70, "Module": 65, "Document Number": 65,
-            "Activities": 280, "Title": 85, "Department": 75, "Technical Unit": 120,
-            "Assigned to": 100, "Progress": 70, "Estimated internal": 75,
-            "Estimated external": 75, "Start date": 70, "Due date": 70,
-            "Notes": 180, "Professional Role": 130
+            "Select": 40, "ID": 45, "Stick-Built": 85, "Module": 85, "Document Number": 65,
+            "Activities": 280, "Title": 120, "Department": 80, "Technical Unit": 120,
+            "Assigned to": 120, "Progress": 80, "Estimated internal": 85,
+            "Estimated external": 85, "Start date": 85, "Due date": 85,
+            "Notes": 200, "Professional Role": 150
         }
         
         for col in self.df.columns:
