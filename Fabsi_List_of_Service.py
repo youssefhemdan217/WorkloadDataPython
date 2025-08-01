@@ -545,6 +545,9 @@ class ExcelActivityApp:
         ctk.CTkButton(button_frame, text="🌙 Dark Mode", 
                      command=self.toggle_dark_mode, 
                      fg_color="#22505f", hover_color="#003d52", width=100).pack(side='right', padx=(0, 10))
+        ctk.CTkButton(button_frame, text="🧹 Clear Form", 
+                     command=self.clear_form, 
+                     fg_color="#ef8827", hover_color="#22505f", width=100).pack(side='right', padx=(0, 10))
         ctk.CTkButton(button_frame, text="Agregar Actividad", 
                      command=self.add_row, 
                      fg_color="#5b93a4", hover_color="#255c7b", width=140).pack(side='right')
@@ -560,6 +563,19 @@ class ExcelActivityApp:
         # Add a visual separator between form and table - thinner
         separator = ctk.CTkFrame(self.root, height=1, fg_color="#22505f")
         separator.pack(fill='x', padx=10, pady=2)
+
+        # Add duplicate rows info label
+        info_frame = ctk.CTkFrame(self.root, height=25, fg_color="transparent")
+        info_frame.pack(fill='x', padx=15, pady=(2, 0))
+        info_frame.pack_propagate(False)
+        
+        duplicate_info_label = ctk.CTkLabel(
+            info_frame, 
+            text="ℹ️ Yellow highlighted rows indicate duplicate entries (same values in all columns except Document Number)",
+            font=ctk.CTkFont(family="Arial", size=11),
+            text_color="#22505f"
+        )
+        duplicate_info_label.pack(side='left', padx=5)
 
         # Create the main table frame (always present) - reduced padding
         self.table_frame = ctk.CTkFrame(self.root, corner_radius=10)
@@ -1325,9 +1341,17 @@ class ExcelActivityApp:
                        background="#5b93a4",
                        font=('Arial', 9, 'bold'))
         
+        # Find duplicate rows before inserting data
+        duplicate_indices = self.find_duplicate_rows()
+        
         # Insert data
         for i, row in self.df.iterrows():
-            tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+            # Determine row tag based on duplicate status and position
+            if i in duplicate_indices:
+                tag = 'duplicate_row'  # Yellow highlighting for duplicates
+            else:
+                tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+            
             row_values = list(row)
             if len(row_values) > 0 and 'Select' in self.df.columns:
                 checkbox_idx = self.df.columns.get_loc('Select')
@@ -1340,6 +1364,8 @@ class ExcelActivityApp:
         # Configure row colors
         self.tree.tag_configure('oddrow', background='white')
         self.tree.tag_configure('evenrow', background='#5b93a4')
+        # Configure duplicate row highlighting in yellow
+        self.tree.tag_configure('duplicate_row', background='yellow', foreground='black', font=('Arial', 10, 'bold'))
         # Configure summation row with bright colors
         self.tree.tag_configure('total_row', background='#ef8827', foreground='black', font=('Arial', 12, 'bold'))
         
@@ -1349,6 +1375,31 @@ class ExcelActivityApp:
         
         # Update the totals after rendering the table
         self.update_sum_labels()
+
+    def find_duplicate_rows(self):
+        """
+        Find duplicate rows based on all column values (excluding Select, ID, and Document Number columns)
+        Returns a set of row indices that are duplicates
+        """
+        duplicate_indices = set()
+        
+        # Create a copy of the dataframe without Select, ID, and Document Number columns for comparison
+        comparison_df = self.df.copy()
+        
+        # Remove columns that should not be considered for duplicate detection
+        columns_to_exclude = ['Select', 'ID', 'Document Number']
+        for col in columns_to_exclude:
+            if col in comparison_df.columns:
+                comparison_df = comparison_df.drop(col, axis=1)
+        
+        # Find duplicates based on remaining columns
+        # Keep='False' marks all duplicates as True (both original and duplicates)
+        duplicate_mask = comparison_df.duplicated(keep=False)
+        
+        # Get indices of duplicate rows
+        duplicate_indices = set(self.df.index[duplicate_mask].tolist())
+        
+        return duplicate_indices
 
     def add_summation_row_to_table(self):
         """Add a summation row as the last row of the table"""
@@ -2274,6 +2325,22 @@ class ExcelActivityApp:
         entry.bind("<Escape>", lambda e: entry.destroy())
         entry.bind("<FocusOut>", on_edit_done)
 
+    def clear_form(self):
+        """Clear all form fields for easy data entry"""
+        if messagebox.askyesno("Clear Form", "Are you sure you want to clear all form fields?"):
+            for col, entry in self.entries.items():
+                if hasattr(entry, 'set') and col != "Department":  # Keep Department as "FABSI"
+                    entry.set("")
+                elif hasattr(entry, 'delete') and col != "Department":
+                    entry.delete(0, 'end')
+                    
+                # Reset Department to FABSI if it was cleared
+                if col == "Department":
+                    if hasattr(entry, 'insert'):
+                        entry.insert(0, "FABSI")
+                    elif hasattr(entry, 'set'):
+                        entry.set("FABSI")
+
     def add_row(self):
         required_fields = ["Stick-Built", "Module", "Department", "Activities"]
         missing_fields = [col for col in required_fields if not self.entries[col].get().strip()]
@@ -2353,14 +2420,15 @@ class ExcelActivityApp:
             print(f"Saving current dropdown filters: {current_dropdown_filters}")  # Debug
             print(f"Saving current column filters: {current_column_filters}")  # Debug
             
-            # Clear form fields after successful insert
-            for col, entry in self.entries.items():
-                if hasattr(entry, 'set') and col != "Department":  # Keep Department as "FABSI"
-                    entry.set("")
-                elif hasattr(entry, 'delete') and col != "Department":
-                    entry.delete(0, 'end')
-                    if col == "Department":
-                        entry.insert(0, "FABSI")
+            # DO NOT clear form fields - keep them for easier data entry
+            # Commented out form clearing to allow faster consecutive entries
+            # for col, entry in self.entries.items():
+            #     if hasattr(entry, 'set') and col != "Department":  # Keep Department as "FABSI"
+            #         entry.set("")
+            #     elif hasattr(entry, 'delete') and col != "Department":
+            #         entry.delete(0, 'end')
+            #         if col == "Department":
+            #             entry.insert(0, "FABSI")
             
             # Reload ALL project data first (this updates self.original_df)
             self.refreshing_data = True  # Set flag to prevent table rendering
@@ -2398,14 +2466,38 @@ class ExcelActivityApp:
         if not self.selected_rows:
             messagebox.showwarning("Warning", "Please select at least one activity to delete.")
             return
-        if messagebox.askyesno("Confirm Delete", f"Do you want to delete {len(self.selected_rows)} selected activities?"):
+        
+        if messagebox.askyesno("Confirm Delete", f"Do you want to delete {len(self.selected_rows)} selected activities from the database?"):
             # Get the actual database IDs from the Document Number column
             ids_to_delete = []
+            missing_ids = []
+            
+            print(f"Selected rows to delete: {sorted(self.selected_rows)}")  # Debug
+            print(f"DataFrame columns: {list(self.df.columns)}")  # Debug
+            
             for row_idx in self.selected_rows:
-                if row_idx < len(self.df) and 'Document Number' in self.df.columns:
-                    db_id = self.df.iloc[row_idx]['Document Number']
-                    if pd.notnull(db_id):  # Only add valid IDs
-                        ids_to_delete.append(int(db_id))
+                if row_idx < len(self.df):
+                    if 'Document Number' in self.df.columns:
+                        db_id = self.df.iloc[row_idx]['Document Number']
+                        if pd.notnull(db_id) and str(db_id).strip():  # Check for valid ID
+                            try:
+                                ids_to_delete.append(int(db_id))
+                                print(f"Row {row_idx}: Found DB ID {db_id}")  # Debug
+                            except (ValueError, TypeError):
+                                print(f"Row {row_idx}: Invalid DB ID format: {db_id}")  # Debug
+                                missing_ids.append(row_idx)
+                        else:
+                            print(f"Row {row_idx}: Empty/null DB ID")  # Debug
+                            missing_ids.append(row_idx)
+                    else:
+                        print("Document Number column not found in DataFrame")  # Debug
+                        missing_ids.append(row_idx)
+                else:
+                    print(f"Row index {row_idx} is out of bounds (DataFrame has {len(self.df)} rows)")  # Debug
+                    missing_ids.append(row_idx)
+            
+            print(f"Valid IDs to delete: {ids_to_delete}")  # Debug
+            print(f"Rows with missing/invalid IDs: {missing_ids}")  # Debug
             
             # Delete from database
             if ids_to_delete:
@@ -2415,14 +2507,26 @@ class ExcelActivityApp:
                     engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
                     
                     deleted_count = 0
+                    failed_deletes = []
+                    
                     with engine.begin() as conn:
                         for db_id in ids_to_delete:
-                            result = conn.execute(sqlalchemy.text("DELETE FROM service WHERE id = :id"), {'id': db_id})
-                            if result.rowcount > 0:
-                                deleted_count += 1
-                            logging.info(f"Deleted service ID {db_id}, rows affected: {result.rowcount}")
+                            try:
+                                result = conn.execute(sqlalchemy.text("DELETE FROM service WHERE id = :id"), {'id': db_id})
+                                if result.rowcount > 0:
+                                    deleted_count += 1
+                                    print(f"Successfully deleted service ID {db_id}")  # Debug
+                                    logging.info(f"Deleted service ID {db_id}, rows affected: {result.rowcount}")
+                                else:
+                                    failed_deletes.append(db_id)
+                                    print(f"No rows affected when deleting service ID {db_id}")  # Debug
+                            except Exception as delete_error:
+                                failed_deletes.append(db_id)
+                                print(f"Failed to delete service ID {db_id}: {delete_error}")  # Debug
+                                logging.error(f"Failed to delete service ID {db_id}: {delete_error}")
                     
-                    # Clear selection
+                    # Clear selection after successful deletion
+                    self.selected_rows.clear()
                     self.selected_rows.clear()
                     
                     # Store current filter state BEFORE reloading data
@@ -2461,13 +2565,27 @@ class ExcelActivityApp:
                         self.apply_all_active_filters()
                         print("Applied all filters after delete")  # Debug
                     
-                    messagebox.showinfo("Success", f"Deleted {deleted_count} activities successfully from database.")
-                    logging.info(f"Successfully deleted {deleted_count} services from database")
+                    # Show detailed success message
+                    success_msg = f"Successfully deleted {deleted_count} activities from database."
+                    if failed_deletes:
+                        success_msg += f"\nFailed to delete {len(failed_deletes)} activities (IDs: {failed_deletes})."
+                    if missing_ids:
+                        success_msg += f"\n{len(missing_ids)} selected rows had no valid database IDs."
+                    
+                    messagebox.showinfo("Deletion Complete", success_msg)
+                    logging.info(f"Successfully deleted {deleted_count} services from database. Failed: {len(failed_deletes)}")
+                    
                 except Exception as e:
                     logging.error(f"Failed to delete services: {e}")
-                    messagebox.showerror("Error", f"Failed to delete activities: {e}")
+                    import traceback
+                    logging.error(traceback.format_exc())
+                    messagebox.showerror("Error", f"Failed to delete activities from database: {e}")
             else:
-                messagebox.showwarning("Warning", "No valid activities found to delete.")
+                # Handle case where no valid IDs were found
+                if missing_ids:
+                    messagebox.showwarning("Warning", f"No valid database IDs found for the {len(missing_ids)} selected rows. Make sure the data was properly loaded from the database.")
+                else:
+                    messagebox.showwarning("Warning", "No valid activities found to delete.")
 
     def save_to_excel(self):
         if self.df.empty:

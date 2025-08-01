@@ -57,6 +57,7 @@ Your application has been updated to use your company's unified color scheme and
 | Table Headers | `#D9D9D9` | `#5b93a4` | Column headers |
 | Even Rows | `#F8F8F8` | `#5b93a4` | Alternating rows |
 | Odd Rows | `white` | `white` | Alternating rows |
+| **Duplicate Rows** | `N/A` | `yellow` | **⚠️ NEW: Duplicate detection highlighting** |
 | Total Row | `#FFD700` | `#ef8827` | Summary totals |
 | Filter Headers | `#D9D9D9` | `#5b93a4` | Filter interface |
 
@@ -136,6 +137,7 @@ Your application has been updated to use your company's unified color scheme and
 5. **Accessibility**: Maintained contrast ratios for readability
 6. **Visual Clarity**: Clear distinction between different element types
 7. **Logo Integration**: Automatic image loading with text fallbacks for reliability
+8. **🆕 Duplicate Detection**: Yellow highlighting automatically identifies duplicate rows to prevent data entry errors
 
 ## 📝 **Technical Implementation Notes**
 - Added PIL/Pillow for image processing and logo display
@@ -148,6 +150,12 @@ Your application has been updated to use your company's unified color scheme and
 - Color hierarchy follows UI best practices
 - Hover states provide clear user feedback
 - Export functions maintain brand colors in generated documents
+- **🆕 Duplicate Detection System**: 
+  - Automatic detection of duplicate rows based on all column values (excluding Select column)
+  - Yellow highlighting with bold text for immediate visual identification
+  - Real-time detection during data loading, filtering, and new row addition
+  - Informational tooltip explains the highlighting system to users
+  - Helps prevent accidental duplicate entries when users click "Add Row" multiple times
 
 ## 📁 **Logo Files Added**
 - `photos/saipem_logo.png` - Saipem company logo (left header)
