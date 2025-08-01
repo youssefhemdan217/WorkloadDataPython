@@ -5,6 +5,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s %(levelname)s %(message)s'
 )
+import customtkinter as ctk
 from tkinter import filedialog, messagebox, ttk
 import tkinter as tk
 import pandas as pd
@@ -12,12 +13,259 @@ import os
 import subprocess
 import traceback
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from datetime import datetime, date
+from PIL import Image, ImageTk
+
+try:
+    from tkcalendar import Calendar, DateEntry
+    CALENDAR_AVAILABLE = True
+except ImportError:
+    CALENDAR_AVAILABLE = False
+    print("tkcalendar not available. Installing...")
+    try:
+        subprocess.check_call(["pip", "install", "tkcalendar"])
+        from tkcalendar import Calendar, DateEntry
+        CALENDAR_AVAILABLE = True
+        print("tkcalendar installed successfully!")
+    except Exception as e:
+        print(f"Failed to install tkcalendar: {e}")
+        CALENDAR_AVAILABLE = False
+
+# Set customtkinter appearance
+ctk.set_appearance_mode("light")  # "light" or "dark"
+ctk.set_default_color_theme("blue")  # "blue", "green", "dark-blue"
+
+class CustomDatePicker(ctk.CTkFrame):
+    """Custom date picker widget that integrates with CustomTkinter"""
+    
+    def __init__(self, parent, width=180, **kwargs):
+        super().__init__(parent, **kwargs)
+        
+        self.width = width
+        self.date_var = tk.StringVar()
+        self.date_var.set("")
+        
+        # Create frame for the date picker
+        self.configure(width=width, height=32)
+        
+        # Entry to display selected date
+        self.date_entry = ctk.CTkEntry(
+            self, 
+            width=width-40, 
+            placeholder_text="YYYY-MM-DD",
+            font=ctk.CTkFont(family="Arial", size=11)
+        )
+        self.date_entry.pack(side='left', fill='x', expand=True)
+        
+        # Bind validation and keyboard shortcuts
+        self.date_entry.bind('<FocusOut>', self.validate_date)
+        self.date_entry.bind('<KeyRelease>', self.format_date_input)
+        self.date_entry.bind('<Double-1>', lambda e: self.open_calendar())  # Double-click to open calendar
+        self.date_entry.bind('<F4>', lambda e: self.open_calendar())  # F4 to open calendar (like Excel)
+        
+        # Calendar button
+        self.calendar_btn = ctk.CTkButton(
+            self,
+            text="📅",
+            width=30,
+            height=32,
+            command=self.open_calendar,
+            font=ctk.CTkFont(family="Arial", size=12)
+        )
+        self.calendar_btn.pack(side='right', padx=(5, 0))
+        
+        # Make the frame non-expandable
+        self.pack_propagate(False)
+        
+    def open_calendar(self):
+        """Open calendar popup for date selection"""
+        if not CALENDAR_AVAILABLE:
+            messagebox.showwarning("Calendar Not Available", 
+                                 "Calendar widget is not available. Please enter date manually in YYYY-MM-DD format.")
+            return
+            
+        # Create popup window
+        popup = tk.Toplevel(self)
+        popup.title("Select Date")
+        popup.geometry("350x400")
+        popup.resizable(False, False)
+        popup.transient(self.winfo_toplevel())
+        popup.grab_set()
+        
+        # Center the popup
+        popup.update_idletasks()
+        x = (popup.winfo_screenwidth() // 2) - (350 // 2)
+        y = (popup.winfo_screenheight() // 2) - (400 // 2)
+        popup.geometry(f"350x400+{x}+{y}")
+        
+        # Create main frame for calendar
+        cal_frame = tk.Frame(popup, bg='white')
+        cal_frame.pack(fill='both', expand=True, padx=15, pady=15)
+        
+        # Create calendar widget - this will show the full calendar with years, months, and days
+        cal = Calendar(
+            cal_frame,
+            font=('Arial', 12),
+            selectmode='day',
+            cursor="hand1",
+            background='white',
+            foreground='black',
+            bordercolor='#22505f',
+            headersbackground='#003d52',
+            headersforeground='white',
+            selectbackground='#ef8827',
+            selectforeground='white',
+            weekendbackground='#5b93a4',
+            weekendforeground='white',
+            othermonthforeground='#255c7b',
+            othermonthbackground='white',
+            showweeknumbers=False,
+            firstweekday='monday',
+            mindate=date(1990, 1, 1),  # Allow dates from 1990
+            maxdate=date(2050, 12, 31),  # Allow dates until 2050
+            date_pattern='yyyy-mm-dd'
+        )
+        cal.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        # Add double-click functionality to calendar
+        def on_date_double_click(event):
+            select_date()
+        
+        cal.bind('<Double-1>', on_date_double_click)
+        
+        # Set current date if entry has a value
+        current_value = self.date_entry.get()
+        if current_value:
+            try:
+                current_date = datetime.strptime(current_value, '%Y-%m-%d').date()
+                cal.selection_set(current_date)
+            except ValueError:
+                # If invalid date, set to today
+                cal.selection_set(date.today())
+        else:
+            # Set to today by default
+            cal.selection_set(date.today())
+        
+        # Buttons frame
+        btn_frame = tk.Frame(popup, bg='white')
+        btn_frame.pack(side='bottom', fill='x', padx=15, pady=15)
+        
+        def select_date():
+            selected_date = cal.selection_get()
+            self.date_entry.delete(0, 'end')
+            self.date_entry.insert(0, selected_date.strftime('%Y-%m-%d'))
+            popup.destroy()
+            
+        def select_today():
+            today = date.today()
+            self.date_entry.delete(0, 'end')
+            self.date_entry.insert(0, today.strftime('%Y-%m-%d'))
+            popup.destroy()
+            
+        def clear_date():
+            self.date_entry.delete(0, 'end')
+            popup.destroy()
+            
+        def cancel():
+            popup.destroy()
+        
+        # Add buttons with improved layout
+        tk.Button(btn_frame, text="Select", command=select_date, 
+                 bg='#003d52', fg='white', font=('Arial', 10, 'bold'),
+                 width=8, pady=5, relief='raised', bd=2).pack(side='left', padx=2)
+        tk.Button(btn_frame, text="Today", command=select_today,
+                 bg='#5b93a4', fg='white', font=('Arial', 10, 'bold'),
+                 width=8, pady=5, relief='raised', bd=2).pack(side='left', padx=2)
+        tk.Button(btn_frame, text="Clear", command=clear_date,
+                 bg='#ef8827', fg='white', font=('Arial', 10, 'bold'),
+                 width=8, pady=5, relief='raised', bd=2).pack(side='left', padx=2)
+        tk.Button(btn_frame, text="Cancel", command=cancel,
+                 bg='#255c7b', fg='white', font=('Arial', 10, 'bold'),
+                 width=8, pady=5, relief='raised', bd=2).pack(side='right', padx=2)
+    
+    def validate_date(self, event=None):
+        """Validate the date format when user types manually"""
+        date_text = self.date_entry.get().strip()
+        if not date_text:
+            return
+            
+        try:
+            # Try to parse the date
+            parsed_date = datetime.strptime(date_text, '%Y-%m-%d')
+            # If successful, ensure it's properly formatted
+            self.date_entry.delete(0, 'end')
+            self.date_entry.insert(0, parsed_date.strftime('%Y-%m-%d'))
+            self.date_entry.configure(text_color="black")
+        except ValueError:
+            # Invalid date format - highlight in red
+            self.date_entry.configure(text_color="red")
+    
+    def format_date_input(self, event=None):
+        """Auto-format date input as user types"""
+        current_text = self.date_entry.get()
+        
+        # Remove any non-digit characters except hyphens
+        cleaned = ''.join(c for c in current_text if c.isdigit() or c == '-')
+        
+        # Auto-add hyphens in the right places
+        if len(cleaned) >= 4 and cleaned[4] != '-':
+            cleaned = cleaned[:4] + '-' + cleaned[4:]
+        if len(cleaned) >= 7 and cleaned[7] != '-':
+            cleaned = cleaned[:7] + '-' + cleaned[7:]
+        
+        # Limit to 10 characters (YYYY-MM-DD)
+        if len(cleaned) > 10:
+            cleaned = cleaned[:10]
+        
+        # Update the entry if it changed
+        if cleaned != current_text:
+            cursor_pos = self.date_entry.index(tk.INSERT)
+            self.date_entry.delete(0, 'end')
+            self.date_entry.insert(0, cleaned)
+            # Try to maintain cursor position
+            try:
+                self.date_entry.icursor(min(cursor_pos, len(cleaned)))
+            except:
+                pass
+    
+    def get(self):
+        """Get the current date value"""
+        return self.date_entry.get()
+    
+    def set(self, value):
+        """Set the date value"""
+        self.date_entry.delete(0, 'end')
+        if value:
+            self.date_entry.insert(0, str(value))
+        # Validate after setting
+        self.validate_date()
+    
+    def delete(self, start, end=None):
+        """Delete content from the entry"""
+        if end is None:
+            end = 'end'
+        self.date_entry.delete(start, end)
+    
+    def insert(self, index, value):
+        """Insert value at index"""
+        self.date_entry.insert(index, value)
+        # Validate after inserting
+        self.validate_date()
 
 class ExcelActivityApp:
     def __init__(self, root):
         self.root = root
         self.root.title("FABSI - List of Service")
         self.root.resizable(True, True)
+        
+        # Set window size and center it
+        window_width = 1400
+        window_height = 900
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
         self.display_columns = [
             "Select", "ID", "Stick-Built", "Module", "Document Number", "Activities", "Title", "Department",
@@ -151,47 +399,93 @@ class ExcelActivityApp:
         self.role_summary_tree = None
         self.role_summary_data = pd.DataFrame()
         self.edit_popup = None
+        self.dark_mode = False  # Track dark mode state
+
+    def load_logo_image(self, image_path, width, height):
+        """Load and resize logo image for display"""
+        try:
+            if os.path.exists(image_path):
+                # Load and resize the image
+                pil_image = Image.open(image_path)
+                # Convert to RGBA if not already
+                if pil_image.mode != 'RGBA':
+                    pil_image = pil_image.convert('RGBA')
+                # Resize maintaining aspect ratio
+                pil_image.thumbnail((width, height), Image.Resampling.LANCZOS)
+                # Convert to CTkImage
+                return ctk.CTkImage(light_image=pil_image, dark_image=pil_image, size=(width, height))
+            else:
+                print(f"Logo image not found: {image_path}")
+                return None
+        except Exception as e:
+            print(f"Error loading logo image {image_path}: {e}")
+            return None
+
+    def toggle_dark_mode(self):
+        """Toggle between light and dark mode"""
+        self.dark_mode = not self.dark_mode
+        if self.dark_mode:
+            ctk.set_appearance_mode("dark")
+        else:
+            ctk.set_appearance_mode("light")
 
     def setup_ui(self):
-        # Create header frame - reduced height
-        header_frame = tk.Frame(self.root, bg='white', height=60)  # Reduced from 100 to 60
-        header_frame.pack(fill='x', padx=10, pady=(2, 5))  # Reduced padding
+        # Create header frame - significantly reduced height
+        header_frame = ctk.CTkFrame(self.root, height=40, corner_radius=10)
+        header_frame.pack(fill='x', padx=10, pady=(2, 3))
         header_frame.pack_propagate(False)
 
-        # Left logo placeholder - smaller size
-        left_logo_frame = tk.Frame(header_frame, width=70, height=50, bg='white')  # Reduced size
-        left_logo_frame.pack(side='left', padx=10)  # Reduced padding
-        left_logo_label = tk.Label(left_logo_frame, text="Logo 1", bg='white', font=("Arial", 8))
+        # Left logo (Saipem) - much smaller size
+        left_logo_frame = ctk.CTkFrame(header_frame, width=60, height=35, corner_radius=5)
+        left_logo_frame.pack(side='left', padx=5)
+        left_logo_frame.pack_propagate(False)
+        
+        # Load Saipem logo
+        saipem_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'saipem_logo.png')
+        saipem_logo_image = self.load_logo_image(saipem_logo_path, 55, 30)
+        
+        if saipem_logo_image:
+            left_logo_label = ctk.CTkLabel(left_logo_frame, image=saipem_logo_image, text="")
+        else:
+            left_logo_label = ctk.CTkLabel(left_logo_frame, text="SAIPEM", font=("Arial", 7), text_color="#003d52")
         left_logo_label.pack(expand=True)
 
-        # Title in center - smaller font
-        title_frame = tk.Frame(header_frame, bg='white')
+        # Title in center - smaller font but still readable
+        title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         title_frame.pack(side='left', expand=True)
-        title_label = tk.Label(
+        title_label = ctk.CTkLabel(
             title_frame, 
             text="FABSI - List of Service",
-            font=("Arial", 18, "bold"),  # Reduced font size from 24 to 18
-            bg='white',
-            fg='#1976D2'
+            font=ctk.CTkFont(family="Arial", size=16, weight="bold"),
+            text_color="#003d52"
         )
         title_label.pack(expand=True)
 
-        # Right logo placeholder - smaller size
-        right_logo_frame = tk.Frame(header_frame, width=70, height=50, bg='white')  # Reduced size
-        right_logo_frame.pack(side='right', padx=10)  # Reduced padding
-        right_logo_label = tk.Label(right_logo_frame, text="Logo 2", bg='white', font=("Arial", 8))
+        # Right logo (FABSI) - much smaller size
+        right_logo_frame = ctk.CTkFrame(header_frame, width=60, height=35, corner_radius=5)
+        right_logo_frame.pack(side='right', padx=5)
+        right_logo_frame.pack_propagate(False)
+        
+        # Load FABSI logo
+        fabsi_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'fabsi_logo.png')
+        fabsi_logo_image = self.load_logo_image(fabsi_logo_path, 55, 30)
+        
+        if fabsi_logo_image:
+            right_logo_label = ctk.CTkLabel(right_logo_frame, image=fabsi_logo_image, text="")
+        else:
+            right_logo_label = ctk.CTkLabel(right_logo_frame, text="FABSI", font=("Arial", 7), text_color="#ef8827")
         right_logo_label.pack(expand=True)
 
-        # Add a separator
-        separator = ttk.Separator(self.root, orient='horizontal')
-        separator.pack(fill='x', padx=10, pady=(0, 5))
+        # Add a separator - thinner
+        separator_frame = ctk.CTkFrame(self.root, height=1, fg_color="#22505f")
+        separator_frame.pack(fill='x', padx=10, pady=(0, 3))
 
         # Main content area
-        main_top = tk.Frame(self.root)
-        main_top.pack(fill='x', padx=10, pady=2)
+        main_top = ctk.CTkFrame(self.root, fg_color="transparent")
+        main_top.pack(fill='x', padx=10, pady=1)
 
         # Project selection dropdown
-        project_label = tk.Label(main_top, text="Select Project:", font=("Arial", 10, "bold"))
+        project_label = ctk.CTkLabel(main_top, text="Select Project:", font=ctk.CTkFont(family="Arial", size=12, weight="bold"))
         project_label.pack(side='left', padx=(0, 5))
         # Always reload project list from DB to avoid stale cache
         import sqlalchemy
@@ -200,74 +494,76 @@ class ExcelActivityApp:
         with engine.connect() as conn:
             result = conn.execute(sqlalchemy.text('SELECT name FROM project')).fetchall()
             project_names = [row[0] for row in result]
-        self.project_combobox = ttk.Combobox(main_top, values=project_names, state="readonly", width=30)
+        self.project_combobox = ctk.CTkComboBox(main_top, values=project_names, state="readonly", width=250)
         self.project_combobox.pack(side='left', padx=(0, 20))
-        self.project_combobox.bind("<<ComboboxSelected>>", self.on_project_selected)
+        self.project_combobox.configure(command=self.on_project_selected)
 
-        # Professional, compact form frame with max width
-        self.entry_frame = tk.Frame(main_top, height=260, width=1300, bd=2, relief='groove', bg='#F7F7F7')
+        # Professional, compact form frame with max width - significantly reduced height
+        self.entry_frame = ctk.CTkFrame(main_top, height=180, width=1300, corner_radius=10)
         self.entry_frame.pack_propagate(False)
-        self.entry_frame.pack(side='left', padx=10, pady=5, anchor='nw')
+        self.entry_frame.pack(side='left', padx=10, pady=3, anchor='nw')
 
-        # Button frame with all options
-        button_frame = tk.Frame(self.root)
-        button_frame.pack(fill='x', padx=15, pady=(5, 5))
+        # Button frame with all options - reduced spacing
+        button_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        button_frame.pack(fill='x', padx=15, pady=(3, 3))
         
         # Left side buttons
-        tk.Button(button_frame, text="Professional Role Summary", 
-                 command=self.open_role_summary_modal, 
-                 bg="#1976D2", fg="white").pack(side='left', padx=(0, 10))
-        tk.Button(button_frame, text="🔄 Clear All Filters", 
-                 command=self.reset_filters, 
-                 bg="#FF9800", fg="white").pack(side='left', padx=(0, 10))
-        tk.Button(button_frame, text="🗑️ Delete Selected", 
-                 command=self.delete_selected, 
-                 bg="#F44336", fg="white").pack(side='left', padx=(0, 10))
-        tk.Button(button_frame, text="✅ Select All", 
-                 command=self.select_all_rows, 
-                 bg="#9C27B0", fg="white").pack(side='left', padx=(0, 10))
-        tk.Button(button_frame, text="❌ Deselect All", 
-                 command=self.deselect_all_rows, 
-                 bg="#607D8B", fg="white").pack(side='left', padx=(0, 10))
+        ctk.CTkButton(button_frame, text="Professional Role Summary", 
+                     command=self.open_role_summary_modal, 
+                     fg_color="#003d52", hover_color="#255c7b", width=160).pack(side='left', padx=(0, 10))
+        ctk.CTkButton(button_frame, text="🔄 Clear All Filters", 
+                     command=self.reset_filters, 
+                     fg_color="#ef8827", hover_color="#22505f", width=130).pack(side='left', padx=(0, 10))
+        ctk.CTkButton(button_frame, text="🗑️ Delete Selected", 
+                     command=self.delete_selected, 
+                     fg_color="#255c7b", hover_color="#22505f", width=130).pack(side='left', padx=(0, 10))
+        ctk.CTkButton(button_frame, text="✅ Select All", 
+                     command=self.select_all_rows, 
+                     fg_color="#5b93a4", hover_color="#255c7b", width=100).pack(side='left', padx=(0, 10))
+        ctk.CTkButton(button_frame, text="❌ Deselect All", 
+                     command=self.deselect_all_rows, 
+                     fg_color="#22505f", hover_color="#003d52", width=110).pack(side='left', padx=(0, 10))
         
         # Export buttons
-        export_frame = tk.Frame(button_frame, bg='#E3F2FD', bd=1, relief='groove')
+        export_frame = ctk.CTkFrame(button_frame, corner_radius=8)
         export_frame.pack(side='left', padx=10)
         
-        tk.Label(export_frame, text="Export Data:", 
-                bg='#E3F2FD', fg='#1976D2', 
-                font=('Arial', 9, 'bold')).pack(side='left', padx=5)
+        ctk.CTkLabel(export_frame, text="Export Data:", 
+                    font=ctk.CTkFont(family='Arial', size=11, weight='bold')).pack(side='left', padx=5)
         
-        tk.Button(export_frame, text="📊 Excel", 
-                 command=self.save_to_excel,
-                 bg="#217346", fg="white",  # Excel green color
-                 width=8).pack(side='left', padx=5, pady=2)
+        ctk.CTkButton(export_frame, text="📊 Excel", 
+                     command=self.save_to_excel,
+                     fg_color="#5b93a4", hover_color="#255c7b",
+                     width=80).pack(side='left', padx=5, pady=5)
         
-        tk.Button(export_frame, text="📄 PDF",
-                 command=self.save_to_pdf,
-                 bg="#DB4437", fg="white",  # PDF red color
-                 width=8).pack(side='left', padx=5, pady=2)
+        ctk.CTkButton(export_frame, text="📄 PDF",
+                     command=self.save_to_pdf,
+                     fg_color="#255c7b", hover_color="#22505f",
+                     width=80).pack(side='left', padx=5, pady=5)
         
         # Right side buttons
-        tk.Button(button_frame, text="Agregar Actividad", 
-                 command=self.add_row, 
-                 bg="#388E3C", fg="white").pack(side='right')
-        tk.Button(button_frame, text="Open File", 
-                 command=self.open_file, 
-                 bg="#0288D1", fg="white").pack(side='right', padx=(0, 10))
+        ctk.CTkButton(button_frame, text="🌙 Dark Mode", 
+                     command=self.toggle_dark_mode, 
+                     fg_color="#22505f", hover_color="#003d52", width=100).pack(side='right', padx=(0, 10))
+        ctk.CTkButton(button_frame, text="Agregar Actividad", 
+                     command=self.add_row, 
+                     fg_color="#5b93a4", hover_color="#255c7b", width=140).pack(side='right')
+        ctk.CTkButton(button_frame, text="Open File", 
+                     command=self.open_file, 
+                     fg_color="#003d52", hover_color="#255c7b", width=100).pack(side='right', padx=(0, 10))
 
         # Remove the always-visible small table from the main UI
-        # self.role_summary_frame = tk.Frame(summary_right, bd=1, relief='solid')
+        # self.role_summary_frame = ctk.CTkFrame(summary_right)
         # self.role_summary_frame.pack(padx=5, pady=5, anchor='ne')
         # self.role_summary_tree = ...
 
-        # Add a visual separator between form and table
-        separator = tk.Frame(self.root, height=2, bd=1, relief='sunken', bg="#BDBDBD")
-        separator.pack(fill='x', padx=10, pady=5)
+        # Add a visual separator between form and table - thinner
+        separator = ctk.CTkFrame(self.root, height=1, fg_color="#22505f")
+        separator.pack(fill='x', padx=10, pady=2)
 
-        # Create the main table frame (always present)
-        self.table_frame = tk.Frame(self.root)
-        self.table_frame.pack(fill='both', expand=True, padx=15, pady=(5, 0))
+        # Create the main table frame (always present) - reduced padding
+        self.table_frame = ctk.CTkFrame(self.root, corner_radius=10)
+        self.table_frame.pack(fill='both', expand=True, padx=15, pady=(2, 0))
 
         self.render_table()
         self.build_entry_fields()
@@ -278,12 +574,15 @@ class ExcelActivityApp:
         # Start auto-updating totals every 400ms
         self.auto_update_totals()
 
-        # Bottom frame with buttons (outside of scrollable area)
-        bottom_frame = tk.Frame(self.root)
-        bottom_frame.pack(pady=10, fill='x')
-        tk.Button(bottom_frame, text="Reset Filtros", command=self.reset_filters).pack(side='left', padx=10)
-        tk.Button(bottom_frame, text="Save & Print in Excel", command=self.save_to_excel).pack(side='right', padx=10)
-        tk.Button(bottom_frame, text="Save & Print in PDF", command=self.save_to_pdf).pack(side='right', padx=10)
+        # Bottom frame with buttons (outside of scrollable area) - reduced spacing
+        bottom_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        bottom_frame.pack(pady=5, fill='x')
+        ctk.CTkButton(bottom_frame, text="Reset Filtros", command=self.reset_filters,
+                     fg_color="#ef8827", hover_color="#22505f").pack(side='left', padx=10)
+        ctk.CTkButton(bottom_frame, text="Save & Print in Excel", command=self.save_to_excel,
+                     fg_color="#5b93a4", hover_color="#255c7b").pack(side='right', padx=10)
+        ctk.CTkButton(bottom_frame, text="Save & Print in PDF", command=self.save_to_pdf,
+                     fg_color="#255c7b", hover_color="#22505f").pack(side='right', padx=10)
 
     def on_checkbox_click(self, event):
         """Handle checkbox column clicks for row selection"""
@@ -325,25 +624,25 @@ class ExcelActivityApp:
             return
 
         # Create new modal window
-        self.role_summary_modal = tk.Toplevel(self.root)
+        self.role_summary_modal = ctk.CTkToplevel(self.root)
         self.role_summary_modal.title("Professional Role & Hours Summary")
-        self.role_summary_modal.geometry("400x400")
+        self.role_summary_modal.geometry("450x500")
         self.role_summary_modal.transient(self.root)
         self.role_summary_modal.grab_set()
+        self.role_summary_modal.resizable(False, False)
 
         # Add title label
-        title_label = tk.Label(
+        title_label = ctk.CTkLabel(
             self.role_summary_modal,
             text="Total Hours per Professional Role",
-            font=("Arial", 12, "bold"),
-            fg="#1976D2",
-            pady=10
+            font=ctk.CTkFont(family="Arial", size=16, weight="bold"),
+            text_color="#003d52"
         )
-        title_label.pack()
+        title_label.pack(pady=(20, 15))
 
         # Create main frame
-        frame = tk.Frame(self.role_summary_modal, bd=1, relief='solid')
-        frame.pack(fill='both', expand=True, padx=10, pady=(0, 10))
+        frame = ctk.CTkFrame(self.role_summary_modal, corner_radius=10)
+        frame.pack(fill='both', expand=True, padx=20, pady=(0, 20))
 
         # Create treeview with fixed column widths
         self.role_summary_tree = ttk.Treeview(
@@ -363,7 +662,7 @@ class ExcelActivityApp:
                        fieldbackground="white")
         style.configure("Summary.Treeview.Heading",
                        font=('Arial', 9, 'bold'),
-                       background="#E3F2FD")
+                       background="#5b93a4")
 
         # Configure headers
         self.role_summary_tree.heading("Professional Role", text="Professional Role",
@@ -387,16 +686,17 @@ class ExcelActivityApp:
         self.update_role_summary()
 
         # Add close button
-        close_btn = tk.Button(
+        close_btn = ctk.CTkButton(
             self.role_summary_modal,
             text="Close",
             command=self.role_summary_modal.destroy,
-            bg="#1976D2",
-            fg="white",
-            padx=20,
-            font=("Arial", 10)
+            fg_color="#003d52",
+            hover_color="#255c7b",
+            width=120,
+            height=35,
+            font=ctk.CTkFont(family="Arial", size=12)
         )
-        close_btn.pack(pady=10)
+        close_btn.pack(pady=15)
 
     def sort_column(self, column, ascending=True):
         """Sort the data by column"""
@@ -529,17 +829,17 @@ class ExcelActivityApp:
                 row_values = []
                 for col in self.df.columns:
                     if col == "Select":
-                        row_values.append("📊")
-                    elif col == "ID":
-                        row_values.append("TOTAL")
-                    elif col == "Activities":
-                        row_values.append("📈 TOTAL PROJECT HOURS")
+                        row_values.append("")
+                    # elif col == "ID":
+                    #     row_values.append("TOTAL")
+                    # elif col == "Activities":
+                    #     row_values.append("📈 TOTAL PROJECT HOURS")
                     elif col == "Estimated internal":
                         row_values.append(f"{total_internal:,.2f}")
                     elif col == "Estimated external":
                         row_values.append(f"{total_external:,.2f}")
-                    elif col in ["Department"]:
-                        row_values.append("ALL")
+                    # elif col in ["Department"]:
+                    #     row_values.append("ALL")
                     else:
                         row_values.append("")
                 
@@ -592,7 +892,7 @@ class ExcelActivityApp:
                 if len(summary) > 0:
                     self.role_summary_tree.insert("", "end", values=("TOTAL", f"{total_hours:,.0f}"),
                                                 tags=('total',))
-                    self.role_summary_tree.tag_configure('total', background='#E3F2FD',
+                    self.role_summary_tree.tag_configure('total', background='#5b93a4',
                                                        font=('Arial', 9, 'bold'))
             except Exception as e:
                 print(f"Error updating role summary: {e}")
@@ -712,7 +1012,7 @@ class ExcelActivityApp:
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo cargar la hoja '{sheet_name}':\n{e}")
 
-    def on_project_selected(self, event):
+    def on_project_selected(self, choice=None):
         project_name = self.project_combobox.get()
         self.current_project = project_name
         # Fetch project ID directly from DB
@@ -803,8 +1103,6 @@ class ExcelActivityApp:
             ["Department", "Estimated internal", "Estimated external", "Start date"],
             ["Due date", "Notes"]
         ]
-        label_opts = {'anchor': 'w', 'bg': '#F7F7F7', 'font': ('Arial', 9)}
-        entry_opts = {'font': ('Arial', 10)}
         
         # Set column weights for better distribution
         self.entry_frame.grid_columnconfigure(0, weight=2)  # Stick-Built
@@ -812,53 +1110,88 @@ class ExcelActivityApp:
         self.entry_frame.grid_columnconfigure(2, weight=4)  # Activities (double width)
         self.entry_frame.grid_columnconfigure(3, weight=2)  # Title
         
-        # Define field widths
+        # Define field widths - optimized to match table columns
         field_widths = {
-            "Stick-Built": 30,
-            "Module": 30,
-            "Activities": 60,  # Much wider for Activities
-            "Title": 35,
-            "Technical Unit": 35,
-            "Assigned to": 35,
-            "Progress": 25,
-            "Professional Role": 35,
-            "Department": 25,
-            "Estimated internal": 25,
-            "Estimated external": 25,
-            "Start date": 25,
-            "Due date": 25,
-            "Notes": 70  # Wider for Notes
+            "Stick-Built": 180,
+            "Module": 180,
+            "Activities": 320,  # Balanced width for Activities
+            "Title": 220,
+            "Technical Unit": 220,
+            "Assigned to": 220,
+            "Progress": 160,
+            "Professional Role": 220,
+            "Department": 160,
+            "Estimated internal": 160,
+            "Estimated external": 160,
+            "Start date": 160,
+            "Due date": 160,
+            "Notes": 400  # Reasonable width for Notes
         }
         
         for row_idx, row in enumerate(fields):
             for col_idx, col in enumerate(row):
-                # Create label
-                lbl = tk.Label(self.entry_frame, text=col, **label_opts)
-                lbl.grid(row=row_idx*2, column=col_idx, sticky='w', padx=10, pady=(10,0))
+                # Create label - reduced spacing
+                lbl = ctk.CTkLabel(self.entry_frame, text=col, 
+                                  font=ctk.CTkFont(family="Arial", size=11, weight="bold"),
+                                  anchor="w")
+                lbl.grid(row=row_idx*2, column=col_idx, sticky='w', padx=10, pady=(5,2))
                 
                 # Create field
-                width = field_widths.get(col, 30)  # Default width if not specified
+                width = field_widths.get(col, 200)  # Default width if not specified
                 
-                if col in self.foreign_key_options:
+                if col in self.foreign_key_options and col != "Activities":
+                    # Use dropdown for all foreign key fields except Activities
                     options = self.foreign_key_options[col]
-                    widget = ttk.Combobox(self.entry_frame, width=width, state="readonly", font=('Arial', 11))
-                    widget['values'] = [o['name'] for o in options]
+                    widget = ctk.CTkComboBox(self.entry_frame, width=width, state="readonly",
+                                           font=ctk.CTkFont(family="Arial", size=11))
+                    widget.configure(values=[o['name'] for o in options])
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
-                elif col in ["Department", "Estimated internal", "Estimated external", "Start date", "Due date"]:
-                    widget = tk.Entry(self.entry_frame, width=width, **entry_opts)
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
+                elif col == "Activities":
+                    # Special searchable combobox for Activities
+                    widget = ctk.CTkComboBox(self.entry_frame, width=width, state="normal",
+                                           font=ctk.CTkFont(family="Arial", size=11))
+                    # Get existing activities from foreign key options if available
+                    if col in self.foreign_key_options:
+                        activity_options = [o['name'] for o in self.foreign_key_options[col]]
+                        widget.configure(values=activity_options)
+                    else:
+                        widget.configure(values=[])
+                    
+                    # Set combo box to start empty
+                    widget.set("")
+                    
+                    # Bind key release event for real-time search
+                    def on_activities_key_release(event, combo_widget=widget):
+                        self.filter_activities_dropdown(combo_widget)
+                    
+                    widget.bind('<KeyRelease>', on_activities_key_release)
+                    
+                    self.entries[col] = widget
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
+                elif col in ["Department", "Estimated internal", "Estimated external"]:
+                    # Use entry field for these columns (but not dates)
+                    widget = ctk.CTkEntry(self.entry_frame, width=width,
+                                        font=ctk.CTkFont(family="Arial", size=11))
                     if col == "Department":
                         widget.insert(0, "FABSI")
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
+                elif col in ["Start date", "Due date"]:
+                    # Use custom date picker for date fields
+                    widget = CustomDatePicker(self.entry_frame, width=width)
+                    self.entries[col] = widget
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
                 elif col == "Notes":
-                    widget = tk.Entry(self.entry_frame, width=width, **entry_opts)
+                    widget = ctk.CTkEntry(self.entry_frame, width=width,
+                                        font=ctk.CTkFont(family="Arial", size=11))
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=2, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=2, sticky='we', padx=10, pady=(0,3))
                 else:
-                    widget = tk.Entry(self.entry_frame, width=width, **entry_opts)
+                    widget = ctk.CTkEntry(self.entry_frame, width=width,
+                                        font=ctk.CTkFont(family="Arial", size=11))
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
 
     def update_activities_filter(self, event):
         text = self.entries["Activities"].get()
@@ -869,6 +1202,32 @@ class ExcelActivityApp:
         else:
             self.entries["Activities"]['values'] = all_activities
 
+    def filter_activities_dropdown(self, combo_widget):
+        """Filter the activities dropdown based on user input"""
+        current_text = combo_widget.get().lower()
+        
+        # Get all available activities from foreign key options
+        all_activities = []
+        if "Activities" in self.foreign_key_options:
+            all_activities = [o['name'] for o in self.foreign_key_options["Activities"]]
+        
+        # Also include unique activities from current data
+        if "Activities" in self.df.columns:
+            data_activities = self.df["Activities"].dropna().unique().tolist()
+            # Combine and remove duplicates
+            all_activities = list(set(all_activities + data_activities))
+        
+        if current_text:
+            # Filter activities that contain the typed text
+            filtered_activities = [
+                activity for activity in all_activities 
+                if current_text in activity.lower()
+            ]
+            combo_widget.configure(values=filtered_activities)
+        else:
+            # Show all activities when no text is entered
+            combo_widget.configure(values=all_activities)
+
     def render_table(self):
         """Render the main table with data"""
         # Clear existing widgets
@@ -876,19 +1235,19 @@ class ExcelActivityApp:
             widget.destroy()
         
         # Create main container
-        main_container = ttk.Frame(self.table_frame)
+        main_container = ctk.CTkFrame(self.table_frame, fg_color="transparent")
         main_container.pack(fill='both', expand=True)
         
-        # Create the container for our data table
-        self.scrollable_frame = ttk.Frame(main_container)
-        self.scrollable_frame.pack(fill='both', expand=True, padx=5, pady=5)
+        # Create the container for our data table - minimal padding for more space
+        self.scrollable_frame = ctk.CTkFrame(main_container, corner_radius=8)
+        self.scrollable_frame.pack(fill='both', expand=True, padx=2, pady=2)
         
         # Create and configure treeview with scrollbars
         tree_frame = ttk.Frame(self.scrollable_frame)
         tree_frame.pack(fill='both', expand=True)
         
-        # Create Treeview
-        self.tree = ttk.Treeview(tree_frame, columns=list(self.df.columns), show='headings', height=15)
+        # Create Treeview - increased height to show more rows
+        self.tree = ttk.Treeview(tree_frame, columns=list(self.df.columns), show='headings', height=25)
         
         # Create scrollbars
         vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
@@ -904,24 +1263,24 @@ class ExcelActivityApp:
         tree_frame.grid_columnconfigure(0, weight=1)
         tree_frame.grid_rowconfigure(0, weight=1)
         
-        # Configure headers and columns with increased widths
+        # Configure headers and columns with optimized widths for better fit
         column_widths = {
-            "Select": 45,               # Increased for better checkbox visibility
-            "ID": 50,                  # Increased for larger numbers
-            "Stick-Built": 100,        # Increased for longer names
-            "Module": 100,             # Increased for longer module names
-            "Activities": 400,          # Significantly increased for full activity descriptions
-            "Title": 150,              # Increased for full titles
-            "Department": 100,         # Increased for department names
-            "Technical Unit": 150,     # Increased for longer unit names
-            "Assigned to": 150,        # Increased for full names
-            "Progress": 100,           # Increased for progress status
-            "Estimated internal": 100,  # Increased for larger numbers
-            "Estimated external": 100,  # Increased for larger numbers
-            "Start date": 100,         # Increased for full date format
-            "Due date": 100,           # Increased for full date format
-            "Notes": 300,              # Significantly increased for full notes
-            "Professional Role": 200    # Increased for full role names
+            "Select": 40,               # Compact checkbox visibility
+            "ID": 45,                  # Compact ID numbers
+            "Stick-Built": 85,         # Compact but readable
+            "Module": 85,              # Compact but readable
+            "Activities": 280,         # Reduced from 400 but still readable
+            "Title": 120,              # Reduced but adequate for titles
+            "Department": 80,          # Compact department names
+            "Technical Unit": 120,     # Compact but readable
+            "Assigned to": 120,        # Compact but readable names
+            "Progress": 80,            # Compact progress status
+            "Estimated internal": 85,  # Compact numbers with decimals
+            "Estimated external": 85,  # Compact numbers with decimals
+            "Start date": 85,          # Compact date format
+            "Due date": 85,            # Compact date format
+            "Notes": 200,              # Reduced from 300 but still useful
+            "Professional Role": 150   # Reduced but readable role names
         }
         
         header_map = {
@@ -951,19 +1310,19 @@ class ExcelActivityApp:
             width = column_widths.get(col, 100)
             anchor = 'w' if col in ["Activities", "Title", "Notes", "Technical Unit", 
                                   "Assigned to", "Professional Role", "Department"] else 'center'
-            self.tree.column(col, width=width, minwidth=50, stretch=True, anchor=anchor)
+            self.tree.column(col, width=width, minwidth=40, stretch=True, anchor=anchor)
         
-        # Style the treeview with increased row height for better readability
+        # Style the treeview with reduced row height to show more rows
         style = ttk.Style()
         style.configure("Treeview",
                        background="white",
                        foreground="black",
-                       rowheight=40,  # Increased row height
+                       rowheight=28,  # Reduced row height to show more rows
                        fieldbackground="white",
-                       font=('Arial', 10))  # Slightly larger font
+                       font=('Arial', 10))  # Keep font size readable for blind client
         
         style.configure("Treeview.Heading",
-                       background="#D9D9D9",
+                       background="#5b93a4",
                        font=('Arial', 9, 'bold'))
         
         # Insert data
@@ -980,9 +1339,9 @@ class ExcelActivityApp:
         
         # Configure row colors
         self.tree.tag_configure('oddrow', background='white')
-        self.tree.tag_configure('evenrow', background='#F8F8F8')
+        self.tree.tag_configure('evenrow', background='#5b93a4')
         # Configure summation row with bright colors
-        self.tree.tag_configure('total_row', background='#FFD700', foreground='#000000', font=('Arial', 12, 'bold'))
+        self.tree.tag_configure('total_row', background='#ef8827', foreground='black', font=('Arial', 12, 'bold'))
         
         # Bind events
         self.tree.bind("<Double-1>", self.edit_cell)
@@ -1012,17 +1371,17 @@ class ExcelActivityApp:
         row_values = []
         for col in self.df.columns:
             if col == "Select":
-                row_values.append("📊")  # Special icon for totals row
-            elif col == "ID":
-                row_values.append("TOTAL")
-            elif col == "Activities":
-                row_values.append("📈 TOTAL PROJECT HOURS")
+                row_values.append("")  # Special icon for totals row
+            # elif col == "ID":
+            #     row_values.append("TOTAL")
+            # elif col == "Activities":
+            #     row_values.append("📈 TOTAL PROJECT HOURS")
             elif col == "Estimated internal":
                 row_values.append(f"{total_internal:,.2f}")
             elif col == "Estimated external":
                 row_values.append(f"{total_external:,.2f}")
-            elif col in ["Department"]:
-                row_values.append("ALL")
+            # elif col in ["Department"]:
+            #     row_values.append("ALL")
             else:
                 row_values.append("")  # Empty for other columns
         
@@ -1059,26 +1418,26 @@ class ExcelActivityApp:
         }
         
         column_widths = {
-            "Select": 35,
-            "ID": 35,
-            "Stick-Built": 100,
-            "Module": 100,
-            "Activities": 500,    # Significantly increased for better readability
-            "Title": 150,
-            "Department": 100,
-            "Technical Unit": 180,
-            "Assigned to": 150,
+            "Select": 40,
+            "ID": 45,
+            "Stick-Built": 85,
+            "Module": 85,
+            "Activities": 280,    # Reduced but still readable
+            "Title": 120,
+            "Department": 80,
+            "Technical Unit": 120,
+            "Assigned to": 120,
             "Progress": 80,
-            "Estimated internal": 100,
-            "Estimated external": 100,
-            "Start date": 80,
-            "Due date": 80,
-            "Notes": 250,
-            "Professional Role": 180
+            "Estimated internal": 85,
+            "Estimated external": 85,
+            "Start date": 85,
+            "Due date": 85,
+            "Notes": 200,
+            "Professional Role": 150
         }
         
         header_height = 35  # Further reduced height
-        header_frame = tk.Frame(self.scrollable_frame, height=header_height, bg="#D9D9D9", relief='groove', bd=1)
+        header_frame = tk.Frame(self.scrollable_frame, height=header_height, bg="#5b93a4", relief='groove', bd=1)
         header_frame.pack(fill='x', pady=(0,2))
         header_frame.pack_propagate(False)
         
@@ -1091,24 +1450,24 @@ class ExcelActivityApp:
             txt = header_map.get(col, col)
             width = column_widths.get(col, 100)
             
-            cell_frame = tk.Frame(header_frame, width=width, height=header_height, bg="#D9D9D9", 
+            cell_frame = tk.Frame(header_frame, width=width, height=header_height, bg="#5b93a4", 
                                 relief='groove', bd=1)
             cell_frame.place(x=x_offset, y=0, width=width, height=header_height)
             cell_frame.pack_propagate(False)
             
             # Header container with text and filter button
-            header_container = tk.Frame(cell_frame, bg="#D9D9D9")
+            header_container = tk.Frame(cell_frame, bg="#5b93a4")
             header_container.pack(fill='x', expand=True, pady=(2,0))
             
             # Header text label
-            header_label = tk.Label(header_container, text=txt, bg="#D9D9D9", 
+            header_label = tk.Label(header_container, text=txt, bg="#5b93a4", 
                                   font=('Arial', 8, 'bold'), anchor='w')
             header_label.pack(side='left', padx=(2,0))
             
             # Filter button - only add for non-Select and non-ID columns
             if col not in ["Select", "ID"]:
                 filter_btn = tk.Button(header_container, text="↓", font=('Arial', 7),
-                                     width=2, height=1, relief='flat', bg="#D9D9D9",
+                                     width=2, height=1, relief='flat', bg="#5b93a4",
                                      command=lambda c=col: self.show_column_filter(c))
                 filter_btn.pack(side='right', padx=(0,1))
                 self.filter_menus[col] = filter_btn
@@ -1127,14 +1486,13 @@ class ExcelActivityApp:
         y = filter_btn.winfo_rooty() + filter_btn.winfo_height()
         
         # Create popup window
-        self.filter_popup = tk.Toplevel(self.root)
+        self.filter_popup = ctk.CTkToplevel(self.root)
         self.filter_popup.wm_overrideredirect(True)
-        self.filter_popup.geometry(f"200x350+{x}+{y}")  # Made taller to fit all elements
-        self.filter_popup.configure(bg='white', bd=1, relief='solid')
+        self.filter_popup.geometry(f"220x380+{x}+{y}")  # Made taller to fit all elements
         
         # Main container frame
-        main_frame = tk.Frame(self.filter_popup, bg='white')
-        main_frame.pack(fill='both', expand=True, padx=2, pady=2)
+        main_frame = ctk.CTkFrame(self.filter_popup, corner_radius=8)
+        main_frame.pack(fill='both', expand=True, padx=3, pady=3)
         
         # Store current filter values for search
         self.current_filter_values = []
@@ -1143,41 +1501,35 @@ class ExcelActivityApp:
             self.current_filter_values = [str(val) for val in self.current_filter_values if pd.notnull(val)]
         
         # Frame for sort options at the top
-        sort_frame = tk.Frame(main_frame, bg='white')
-        sort_frame.pack(fill='x', pady=(0, 2))
+        sort_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        sort_frame.pack(fill='x', pady=(5, 5))
         
         # Sort buttons
-        tk.Button(sort_frame, text="Sort A → Z", 
-                 command=lambda: self.sort_column(column, ascending=True),
-                 relief='flat', bg='white', anchor='w').pack(fill='x')
-        tk.Button(sort_frame, text="Sort Z → A",
-                 command=lambda: self.sort_column(column, ascending=False),
-                 relief='flat', bg='white', anchor='w').pack(fill='x')
+        ctk.CTkButton(sort_frame, text="Sort A → Z", 
+                     command=lambda: self.sort_column(column, ascending=True),
+                     height=30, font=ctk.CTkFont(size=10)).pack(fill='x', pady=2)
+        ctk.CTkButton(sort_frame, text="Sort Z → A",
+                     command=lambda: self.sort_column(column, ascending=False),
+                     height=30, font=ctk.CTkFont(size=10)).pack(fill='x', pady=2)
         
         # Separator
-        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=2)
+        separator_frame = ctk.CTkFrame(main_frame, height=2, fg_color="#22505f")
+        separator_frame.pack(fill='x', pady=5)
         
         # Filter options frame
-        filter_frame = tk.Frame(self.filter_popup, bg='white')
-        filter_frame.pack(fill='both', expand=True, padx=2)
+        filter_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        filter_frame.pack(fill='both', expand=True, padx=5)
         
         # Search entry
         search_var = tk.StringVar()
-        search_entry = tk.Entry(filter_frame, textvariable=search_var, 
-                              font=('Arial', 9))
-        search_entry.pack(fill='x', pady=2)
+        search_entry = ctk.CTkEntry(filter_frame, textvariable=search_var, 
+                                   placeholder_text="Search...",
+                                   font=ctk.CTkFont(family='Arial', size=10))
+        search_entry.pack(fill='x', pady=(0, 5))
         
         # Checkboxes container with scrollbar
-        checkbox_container = tk.Frame(filter_frame)
+        checkbox_container = ctk.CTkScrollableFrame(filter_frame, height=200)
         checkbox_container.pack(fill='both', expand=True)
-        
-        # Create canvas for scrolling checkboxes
-        canvas = tk.Canvas(checkbox_container, bg='white')
-        scrollbar = ttk.Scrollbar(checkbox_container, orient="vertical", command=canvas.yview)
-        
-        # Frame to hold checkboxes
-        checkbox_frame = tk.Frame(canvas, bg='white')
-        canvas.create_window((0, 0), window=checkbox_frame, anchor='nw')
         
         # Dictionary to store checkbox variables
         self.current_column_filter_vars = {}
@@ -1186,49 +1538,42 @@ class ExcelActivityApp:
         for val in self.current_filter_values:
             var = tk.BooleanVar()
             self.current_column_filter_vars[val] = var
-            cb = ttk.Checkbutton(checkbox_frame, text=str(val), variable=var)
-            cb.pack(anchor='w', padx=5, pady=1)
-        
-        # Configure scrolling
-        def on_frame_configure(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-        
-        checkbox_frame.bind('<Configure>', on_frame_configure)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # Pack canvas and scrollbar
-        canvas.pack(side='left', fill='both', expand=True)
-        scrollbar.pack(side='right', fill='y')
+            cb = ctk.CTkCheckBox(checkbox_container, text=str(val), variable=var,
+                               font=ctk.CTkFont(family='Arial', size=9))
+            cb.pack(anchor='w', padx=5, pady=2)
         
         # Update filter options based on search
         def update_search(*args):
             search_text = search_var.get().lower()
-            for widget in checkbox_frame.winfo_children():
-                if isinstance(widget, ttk.Checkbutton):
-                    if search_text in widget.cget('text').lower():
-                        widget.pack(anchor='w', padx=5, pady=1)
-                    else:
-                        widget.pack_forget()
+            for widget in checkbox_container.winfo_children():
+                if hasattr(widget, 'cget'):
+                    try:
+                        if search_text in widget.cget('text').lower():
+                            widget.pack(anchor='w', padx=5, pady=2)
+                        else:
+                            widget.pack_forget()
+                    except:
+                        pass
         
         search_var.trace('w', update_search)
         
         # Buttons frame at the bottom
-        btn_frame = tk.Frame(self.filter_popup, bg='white')
-        btn_frame.pack(side='bottom', fill='x', padx=2, pady=4)
-        
-        # Button styles
-        button_style = {'font': ('Arial', 8), 'width': 8, 'pady': 2}
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(side='bottom', fill='x', padx=5, pady=(5, 10))
         
         # Pack buttons with equal spacing
-        tk.Button(btn_frame, text="Apply", 
-                 command=lambda: self.apply_column_filter(column),
-                 bg='#1976D2', fg='white', **button_style).pack(side='left', expand=True, padx=2)
-        tk.Button(btn_frame, text="Clear",
-                 command=lambda: self.clear_column_filter(column),
-                 bg='#FF9800', fg='white', **button_style).pack(side='left', expand=True, padx=2)
-        tk.Button(btn_frame, text="Cancel",
-                 command=self.filter_popup.destroy,
-                 bg='#F44336', fg='white', **button_style).pack(side='left', expand=True, padx=2)
+        ctk.CTkButton(btn_frame, text="Apply", 
+                     command=lambda: self.apply_column_filter(column),
+                     fg_color='#003d52', hover_color='#255c7b',
+                     width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
+        ctk.CTkButton(btn_frame, text="Clear",
+                     command=lambda: self.clear_column_filter(column),
+                     fg_color='#ef8827', hover_color='#22505f',
+                     width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
+        ctk.CTkButton(btn_frame, text="Cancel",
+                     command=self.filter_popup.destroy,
+                     fg_color='#255c7b', hover_color='#22505f',
+                     width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
         
         # Handle click outside popup
         def on_click_outside(event):
@@ -1366,13 +1711,13 @@ class ExcelActivityApp:
         self.tree.bind("<Double-1>", self.edit_cell)
         self.tree.bind("<Button-1>", self.on_checkbox_click)
         
-        # Column widths (updated to match header)
+        # Column widths (optimized for better table fit)
         column_widths = {
-            "Select": 35, "ID": 35, "Stick-Built": 70, "Module": 65, "Document Number": 65,
-            "Activities": 280, "Title": 85, "Department": 75, "Technical Unit": 120,
-            "Assigned to": 100, "Progress": 70, "Estimated internal": 75,
-            "Estimated external": 75, "Start date": 70, "Due date": 70,
-            "Notes": 180, "Professional Role": 130
+            "Select": 40, "ID": 45, "Stick-Built": 85, "Module": 85, "Document Number": 65,
+            "Activities": 280, "Title": 120, "Department": 80, "Technical Unit": 120,
+            "Assigned to": 120, "Progress": 80, "Estimated internal": 85,
+            "Estimated external": 85, "Start date": 85, "Due date": 85,
+            "Notes": 200, "Professional Role": 150
         }
         
         for col in self.df.columns:
@@ -1390,7 +1735,7 @@ class ExcelActivityApp:
         
         # Row styling
         self.tree.tag_configure('oddrow', background='white')
-        self.tree.tag_configure('evenrow', background='#F8F8F8')
+        self.tree.tag_configure('evenrow', background='#5b93a4')
 
     def show_filter_menu(self, column):
         """Show Excel-like filter menu for the selected column"""
@@ -1438,12 +1783,12 @@ class ExcelActivityApp:
         
         tk.Button(sort_btn_frame, text="↑ Sort A to Z", 
                  command=lambda: self.apply_sort(column, True),
-                 bg='#E8F4FD', relief='flat', font=('Arial', 9),
+                 bg='#5b93a4', relief='flat', font=('Arial', 9),
                  width=15, pady=5).pack(side='left', padx=(0, 5))
         
         tk.Button(sort_btn_frame, text="↓ Sort Z to A",
                  command=lambda: self.apply_sort(column, False), 
-                 bg='#E8F4FD', relief='flat', font=('Arial', 9),
+                 bg='#5b93a4', relief='flat', font=('Arial', 9),
                  width=15, pady=5).pack(side='left')
         
         # Filter section with FIXED height to ensure buttons show
@@ -1545,31 +1890,31 @@ class ExcelActivityApp:
         self.search_var.trace('w', update_search)
         
         # BUTTONS SECTION - Always visible at the bottom of main_frame
-        separator = tk.Frame(main_frame, height=2, bg='#CCCCCC')
+        separator = tk.Frame(main_frame, height=2, bg='#22505f')
         separator.pack(fill='x', pady=(10, 5))
         
         # Button frame - FIXED at bottom
-        btn_frame = tk.Frame(main_frame, bg='#F0F0F0', relief='raised', bd=2, height=80)
+        btn_frame = tk.Frame(main_frame, bg='#5b93a4', relief='raised', bd=2, height=80)
         btn_frame.pack(fill='x', side='bottom')
         btn_frame.pack_propagate(False)  # Prevent resizing
         
         # Button container for centered layout
-        btn_container = tk.Frame(btn_frame, bg='#F0F0F0')
+        btn_container = tk.Frame(btn_frame, bg='#5b93a4')
         btn_container.pack(expand=True, pady=15)
         
         # Buttons with improved styling and clear visibility
         apply_btn = tk.Button(btn_container, text="✅ Apply Filter", 
                              command=self.apply_filter,
-                             bg='#4CAF50', fg='white', font=('Arial', 10, 'bold'),
+                             bg='#003d52', fg='white', font=('Arial', 10, 'bold'),
                              width=15, height=2, relief='raised', bd=3,
-                             activebackground='#45A049')
+                             activebackground='#255c7b')
         apply_btn.pack(side='left', padx=8)
         
         clear_btn = tk.Button(btn_container, text="🔄 Clear Filter",
                              command=lambda: self.clear_filter(column),
-                             bg='#FF9800', fg='white', font=('Arial', 10, 'bold'),
+                             bg='#ef8827', fg='white', font=('Arial', 10, 'bold'),
                              width=15, height=2, relief='raised', bd=3,
-                             activebackground='#F57C00')
+                             activebackground='#22505f')
         clear_btn.pack(side='left', padx=8)
         
         # cancel_btn = tk.Button(btn_container, text="❌ Cancel",
@@ -1739,48 +2084,48 @@ class ExcelActivityApp:
         title_label = tk.Label(self.totals_display_frame, 
                               text="� ATTENTION: TOTAL HOURS SUMMARY 🚨", 
                               font=('Arial', 20, 'bold'),
-                              bg='#FF0000',
+                              bg='#22505f',
                               fg='white')
         title_label.pack(pady=(15, 20))
         
         # Create styled containers for totals with MAXIMUM visibility
-        totals_container = tk.Frame(self.totals_display_frame, bg='#FF0000')
+        totals_container = tk.Frame(self.totals_display_frame, bg='#22505f')
         totals_container.pack(expand=True, fill='both', padx=30)
         
         # Internal total box - GIGANTIC and impossible to miss
-        internal_frame = tk.Frame(totals_container, bg='#00FF00', relief='raised', bd=10, height=80)
+        internal_frame = tk.Frame(totals_container, bg='#5b93a4', relief='raised', bd=10, height=80)
         internal_frame.pack(side='left', padx=30, pady=15, expand=True, fill='both')
         
         internal_label = tk.Label(internal_frame, 
                                 text="💼 TOTAL INTERNAL HOURS:", 
                                 font=('Arial', 16, 'bold'),
-                                bg='#00FF00',
-                                fg='black')
+                                bg='#5b93a4',
+                                fg='white')
         internal_label.pack(side='left', padx=25, pady=20)
         
         self.total_label_internal = tk.Label(internal_frame,
                                            text="0.00",
                                            font=('Arial', 24, 'bold'),
-                                           bg='#00FF00',
-                                           fg='red')
+                                           bg='#5b93a4',
+                                           fg='white')
         self.total_label_internal.pack(side='left', padx=(15, 25), pady=20)
         
         # External total box - GIGANTIC and impossible to miss
-        external_frame = tk.Frame(totals_container, bg='#0000FF', relief='raised', bd=10, height=80)
+        external_frame = tk.Frame(totals_container, bg='#003d52', relief='raised', bd=10, height=80)
         external_frame.pack(side='left', padx=30, pady=15, expand=True, fill='both')
         
         external_label = tk.Label(external_frame,
                                 text="🏢 TOTAL EXTERNAL HOURS:",
                                 font=('Arial', 16, 'bold'),
-                                bg='#0000FF',
+                                bg='#003d52',
                                 fg='white')
         external_label.pack(side='left', padx=25, pady=20)
         
         self.total_label_external = tk.Label(external_frame,
                                            text="0.00", 
                                            font=('Arial', 24, 'bold'),
-                                           bg='#0000FF',
-                                           fg='yellow')
+                                           bg='#003d52',
+                                           fg='white')
         self.total_label_external.pack(side='left', padx=(15, 25), pady=20)
 
     def on_checkbox_click(self, event):
@@ -2228,7 +2573,7 @@ class ExcelActivityApp:
             # Table style
             table_style = TableStyle([
                 # Header style
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#D9D9D9')),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5b93a4')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
                 ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -2251,7 +2596,7 @@ class ExcelActivityApp:
             # Alternate row colors
             for row in range(1, len(data)):
                 if row % 2 == 0:
-                    table_style.add('BACKGROUND', (0, row), (-1, row), colors.HexColor('#F8F8F8'))
+                    table_style.add('BACKGROUND', (0, row), (-1, row), colors.HexColor('#255c7b'))
                 else:
                     table_style.add('BACKGROUND', (0, row), (-1, row), colors.white)
             
@@ -2281,7 +2626,7 @@ class ExcelActivityApp:
             logging.error(traceback.format_exc())
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = ctk.CTk()
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     root.geometry(f"{screen_width}x{screen_height}+0+0")
