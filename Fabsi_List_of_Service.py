@@ -1349,8 +1349,8 @@ class ExcelActivityApp:
                         width=width, 
                         height=24,  # Further reduced height
                         state="readonly",
-                        font=ctk.CTkFont(family="Segoe UI", size=9),  # Even smaller font
-                        dropdown_font=ctk.CTkFont(family="Segoe UI", size=8),
+                        font=ctk.CTkFont(family="Segoe UI", size=11),  # Increased font size for better readability
+                        dropdown_font=ctk.CTkFont(family="Segoe UI", size=10),  # Increased dropdown font
                         corner_radius=4,
                         border_width=1,
                         border_color=COLORS['border'],
@@ -1368,8 +1368,8 @@ class ExcelActivityApp:
                         width=width, 
                         height=24,  # Further reduced height
                         state="normal",
-                        font=ctk.CTkFont(family="Segoe UI", size=9),
-                        dropdown_font=ctk.CTkFont(family="Segoe UI", size=8),
+                        font=ctk.CTkFont(family="Segoe UI", size=11),  # Increased font size for better readability
+                        dropdown_font=ctk.CTkFont(family="Segoe UI", size=10),  # Increased dropdown font
                         corner_radius=4,
                         border_width=1,
                         border_color=COLORS['border'],
@@ -1402,7 +1402,7 @@ class ExcelActivityApp:
                         self.entry_frame, 
                         width=width,
                         height=24,  # Further reduced height
-                        font=ctk.CTkFont(family="Segoe UI", size=9),  # Even smaller font
+                        font=ctk.CTkFont(family="Segoe UI", size=11),  # Increased font size for better readability
                         corner_radius=4,
                         border_width=1,
                         border_color=COLORS['border']
@@ -1425,7 +1425,7 @@ class ExcelActivityApp:
                         self.entry_frame, 
                         width=width,
                         height=24,  # Further reduced height
-                        font=ctk.CTkFont(family="Segoe UI", size=9),
+                        font=ctk.CTkFont(family="Segoe UI", size=11),  # Increased font size for better readability
                         corner_radius=4,
                         border_width=1,
                         border_color=COLORS['border'],
@@ -1440,7 +1440,7 @@ class ExcelActivityApp:
                         self.entry_frame, 
                         width=width,
                         height=24,  # Further reduced height
-                        font=ctk.CTkFont(family="Segoe UI", size=9),
+                        font=ctk.CTkFont(family="Segoe UI", size=11),  # Increased font size for better readability
                         corner_radius=4,
                         border_width=1,
                         border_color=COLORS['border']
