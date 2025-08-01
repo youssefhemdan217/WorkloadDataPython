@@ -409,41 +409,41 @@ class ExcelActivityApp:
             ctk.set_appearance_mode("light")
 
     def setup_ui(self):
-        # Create header frame - reduced height
-        header_frame = ctk.CTkFrame(self.root, height=60, corner_radius=10)
-        header_frame.pack(fill='x', padx=10, pady=(2, 5))
+        # Create header frame - significantly reduced height
+        header_frame = ctk.CTkFrame(self.root, height=40, corner_radius=10)
+        header_frame.pack(fill='x', padx=10, pady=(2, 3))
         header_frame.pack_propagate(False)
 
-        # Left logo placeholder - smaller size
-        left_logo_frame = ctk.CTkFrame(header_frame, width=70, height=50, corner_radius=5)
-        left_logo_frame.pack(side='left', padx=10)
-        left_logo_label = ctk.CTkLabel(left_logo_frame, text="Logo 1", font=("Arial", 8))
+        # Left logo placeholder - much smaller size
+        left_logo_frame = ctk.CTkFrame(header_frame, width=50, height=30, corner_radius=5)
+        left_logo_frame.pack(side='left', padx=5)
+        left_logo_label = ctk.CTkLabel(left_logo_frame, text="Logo 1", font=("Arial", 7))
         left_logo_label.pack(expand=True)
 
-        # Title in center - smaller font
+        # Title in center - smaller font but still readable
         title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         title_frame.pack(side='left', expand=True)
         title_label = ctk.CTkLabel(
             title_frame, 
             text="FABSI - List of Service",
-            font=ctk.CTkFont(family="Arial", size=20, weight="bold"),
+            font=ctk.CTkFont(family="Arial", size=16, weight="bold"),
             text_color="#1976D2"
         )
         title_label.pack(expand=True)
 
-        # Right logo placeholder - smaller size
-        right_logo_frame = ctk.CTkFrame(header_frame, width=70, height=50, corner_radius=5)
-        right_logo_frame.pack(side='right', padx=10)
-        right_logo_label = ctk.CTkLabel(right_logo_frame, text="Logo 2", font=("Arial", 8))
+        # Right logo placeholder - much smaller size
+        right_logo_frame = ctk.CTkFrame(header_frame, width=50, height=30, corner_radius=5)
+        right_logo_frame.pack(side='right', padx=5)
+        right_logo_label = ctk.CTkLabel(right_logo_frame, text="Logo 2", font=("Arial", 7))
         right_logo_label.pack(expand=True)
 
-        # Add a separator
-        separator_frame = ctk.CTkFrame(self.root, height=2, fg_color="#BDBDBD")
-        separator_frame.pack(fill='x', padx=10, pady=(0, 5))
+        # Add a separator - thinner
+        separator_frame = ctk.CTkFrame(self.root, height=1, fg_color="#BDBDBD")
+        separator_frame.pack(fill='x', padx=10, pady=(0, 3))
 
         # Main content area
         main_top = ctk.CTkFrame(self.root, fg_color="transparent")
-        main_top.pack(fill='x', padx=10, pady=2)
+        main_top.pack(fill='x', padx=10, pady=1)
 
         # Project selection dropdown
         project_label = ctk.CTkLabel(main_top, text="Select Project:", font=ctk.CTkFont(family="Arial", size=12, weight="bold"))
@@ -459,14 +459,14 @@ class ExcelActivityApp:
         self.project_combobox.pack(side='left', padx=(0, 20))
         self.project_combobox.configure(command=self.on_project_selected)
 
-        # Professional, compact form frame with max width
-        self.entry_frame = ctk.CTkFrame(main_top, height=260, width=1300, corner_radius=10)
+        # Professional, compact form frame with max width - significantly reduced height
+        self.entry_frame = ctk.CTkFrame(main_top, height=180, width=1300, corner_radius=10)
         self.entry_frame.pack_propagate(False)
-        self.entry_frame.pack(side='left', padx=10, pady=5, anchor='nw')
+        self.entry_frame.pack(side='left', padx=10, pady=3, anchor='nw')
 
-        # Button frame with all options
+        # Button frame with all options - reduced spacing
         button_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        button_frame.pack(fill='x', padx=15, pady=(5, 5))
+        button_frame.pack(fill='x', padx=15, pady=(3, 3))
         
         # Left side buttons
         ctk.CTkButton(button_frame, text="Professional Role Summary", 
@@ -518,13 +518,13 @@ class ExcelActivityApp:
         # self.role_summary_frame.pack(padx=5, pady=5, anchor='ne')
         # self.role_summary_tree = ...
 
-        # Add a visual separator between form and table
-        separator = ctk.CTkFrame(self.root, height=3, fg_color="#BDBDBD")
-        separator.pack(fill='x', padx=10, pady=5)
+        # Add a visual separator between form and table - thinner
+        separator = ctk.CTkFrame(self.root, height=1, fg_color="#BDBDBD")
+        separator.pack(fill='x', padx=10, pady=2)
 
-        # Create the main table frame (always present)
+        # Create the main table frame (always present) - reduced padding
         self.table_frame = ctk.CTkFrame(self.root, corner_radius=10)
-        self.table_frame.pack(fill='both', expand=True, padx=15, pady=(5, 0))
+        self.table_frame.pack(fill='both', expand=True, padx=15, pady=(2, 0))
 
         self.render_table()
         self.build_entry_fields()
@@ -535,9 +535,9 @@ class ExcelActivityApp:
         # Start auto-updating totals every 400ms
         self.auto_update_totals()
 
-        # Bottom frame with buttons (outside of scrollable area)
+        # Bottom frame with buttons (outside of scrollable area) - reduced spacing
         bottom_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        bottom_frame.pack(pady=10, fill='x')
+        bottom_frame.pack(pady=5, fill='x')
         ctk.CTkButton(bottom_frame, text="Reset Filtros", command=self.reset_filters,
                      fg_color="#FF9800", hover_color="#F57C00").pack(side='left', padx=10)
         ctk.CTkButton(bottom_frame, text="Save & Print in Excel", command=self.save_to_excel,
@@ -1091,11 +1091,11 @@ class ExcelActivityApp:
         
         for row_idx, row in enumerate(fields):
             for col_idx, col in enumerate(row):
-                # Create label
+                # Create label - reduced spacing
                 lbl = ctk.CTkLabel(self.entry_frame, text=col, 
                                   font=ctk.CTkFont(family="Arial", size=11, weight="bold"),
                                   anchor="w")
-                lbl.grid(row=row_idx*2, column=col_idx, sticky='w', padx=10, pady=(10,5))
+                lbl.grid(row=row_idx*2, column=col_idx, sticky='w', padx=10, pady=(5,2))
                 
                 # Create field
                 width = field_widths.get(col, 200)  # Default width if not specified
@@ -1107,7 +1107,7 @@ class ExcelActivityApp:
                                            font=ctk.CTkFont(family="Arial", size=11))
                     widget.configure(values=[o['name'] for o in options])
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
                 elif col == "Activities":
                     # Special searchable combobox for Activities
                     widget = ctk.CTkComboBox(self.entry_frame, width=width, state="normal",
@@ -1129,7 +1129,7 @@ class ExcelActivityApp:
                     widget.bind('<KeyRelease>', on_activities_key_release)
                     
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
                 elif col in ["Department", "Estimated internal", "Estimated external"]:
                     # Use entry field for these columns (but not dates)
                     widget = ctk.CTkEntry(self.entry_frame, width=width,
@@ -1137,22 +1137,22 @@ class ExcelActivityApp:
                     if col == "Department":
                         widget.insert(0, "FABSI")
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
                 elif col in ["Start date", "Due date"]:
                     # Use custom date picker for date fields
                     widget = CustomDatePicker(self.entry_frame, width=width)
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
                 elif col == "Notes":
                     widget = ctk.CTkEntry(self.entry_frame, width=width,
                                         font=ctk.CTkFont(family="Arial", size=11))
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=2, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=2, sticky='we', padx=10, pady=(0,3))
                 else:
                     widget = ctk.CTkEntry(self.entry_frame, width=width,
                                         font=ctk.CTkFont(family="Arial", size=11))
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,10))
+                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
 
     def update_activities_filter(self, event):
         text = self.entries["Activities"].get()
@@ -1199,16 +1199,16 @@ class ExcelActivityApp:
         main_container = ctk.CTkFrame(self.table_frame, fg_color="transparent")
         main_container.pack(fill='both', expand=True)
         
-        # Create the container for our data table
+        # Create the container for our data table - minimal padding for more space
         self.scrollable_frame = ctk.CTkFrame(main_container, corner_radius=8)
-        self.scrollable_frame.pack(fill='both', expand=True, padx=5, pady=5)
+        self.scrollable_frame.pack(fill='both', expand=True, padx=2, pady=2)
         
         # Create and configure treeview with scrollbars
         tree_frame = ttk.Frame(self.scrollable_frame)
         tree_frame.pack(fill='both', expand=True)
         
-        # Create Treeview
-        self.tree = ttk.Treeview(tree_frame, columns=list(self.df.columns), show='headings', height=15)
+        # Create Treeview - increased height to show more rows
+        self.tree = ttk.Treeview(tree_frame, columns=list(self.df.columns), show='headings', height=25)
         
         # Create scrollbars
         vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
@@ -1273,14 +1273,14 @@ class ExcelActivityApp:
                                   "Assigned to", "Professional Role", "Department"] else 'center'
             self.tree.column(col, width=width, minwidth=50, stretch=True, anchor=anchor)
         
-        # Style the treeview with increased row height for better readability
+        # Style the treeview with reduced row height to show more rows
         style = ttk.Style()
         style.configure("Treeview",
                        background="white",
                        foreground="black",
-                       rowheight=40,  # Increased row height
+                       rowheight=28,  # Reduced row height to show more rows
                        fieldbackground="white",
-                       font=('Arial', 10))  # Slightly larger font
+                       font=('Arial', 10))  # Keep font size readable for blind client
         
         style.configure("Treeview.Heading",
                        background="#D9D9D9",
