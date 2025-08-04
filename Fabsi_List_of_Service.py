@@ -500,16 +500,16 @@ class ExcelActivityApp:
                      fg_color="#003d52", hover_color="#255c7b", width=160).pack(side='left', padx=(0, 10))
         ctk.CTkButton(button_frame, text="🔄 Clear All Filters", 
                      command=self.reset_filters, 
-                     fg_color="#ef8827", hover_color="#22505f", width=130).pack(side='left', padx=(0, 10))
+                     fg_color="#003d52", hover_color="#255c7b", width=130).pack(side='left', padx=(0, 10))
         ctk.CTkButton(button_frame, text="🗑️ Delete Selected", 
                      command=self.delete_selected, 
-                     fg_color="#255c7b", hover_color="#22505f", width=130).pack(side='left', padx=(0, 10))
+                     fg_color="#003d52", hover_color="#255c7b", width=130).pack(side='left', padx=(0, 10))
         ctk.CTkButton(button_frame, text="✅ Select All", 
                      command=self.select_all_rows, 
-                     fg_color="#5b93a4", hover_color="#255c7b", width=100).pack(side='left', padx=(0, 10))
+                     fg_color="#003d52", hover_color="#255c7b", width=100).pack(side='left', padx=(0, 10))
         ctk.CTkButton(button_frame, text="❌ Deselect All", 
                      command=self.deselect_all_rows, 
-                     fg_color="#22505f", hover_color="#003d52", width=110).pack(side='left', padx=(0, 10))
+                     fg_color="#003d52", hover_color="#255c7b", width=110).pack(side='left', padx=(0, 10))
         
         # Export buttons
         export_frame = ctk.CTkFrame(button_frame, corner_radius=8)
@@ -520,21 +520,16 @@ class ExcelActivityApp:
         
         ctk.CTkButton(export_frame, text="📊 Excel", 
                      command=self.save_to_excel,
-                     fg_color="#5b93a4", hover_color="#255c7b",
-                     width=80).pack(side='left', padx=5, pady=5)
-        
-        ctk.CTkButton(export_frame, text="📄 PDF",
-                     command=self.save_to_pdf,
-                     fg_color="#255c7b", hover_color="#22505f",
+                     fg_color="#003d52", hover_color="#255c7b",
                      width=80).pack(side='left', padx=5, pady=5)
         
         # Right side buttons
         ctk.CTkButton(button_frame, text="🧹 Clear Form", 
                      command=self.clear_form, 
-                     fg_color="#ef8827", hover_color="#22505f", width=100).pack(side='right', padx=(0, 10))
+                     fg_color="#003d52", hover_color="#255c7b", width=100).pack(side='right', padx=(0, 10))
         ctk.CTkButton(button_frame, text="Agregar Actividad", 
                      command=self.add_row, 
-                     fg_color="#5b93a4", hover_color="#255c7b", width=140).pack(side='right')
+                     fg_color="#003d52", hover_color="#255c7b", width=140).pack(side='right')
         ctk.CTkButton(button_frame, text="📁 Open Excel File", 
                      command=self.open_file, 
                      fg_color="#003d52", hover_color="#255c7b", width=130).pack(side='right', padx=(0, 10))
@@ -578,11 +573,9 @@ class ExcelActivityApp:
         bottom_frame = ctk.CTkFrame(self.root, fg_color="transparent")
         bottom_frame.pack(pady=5, fill='x')
         ctk.CTkButton(bottom_frame, text="Reset Filtros", command=self.reset_filters,
-                     fg_color="#ef8827", hover_color="#22505f").pack(side='left', padx=10)
+                     fg_color="#003d52", hover_color="#255c7b").pack(side='left', padx=10)
         ctk.CTkButton(bottom_frame, text="Save & Print in Excel", command=self.save_to_excel,
-                     fg_color="#5b93a4", hover_color="#255c7b").pack(side='right', padx=10)
-        ctk.CTkButton(bottom_frame, text="Save & Print in PDF", command=self.save_to_pdf,
-                     fg_color="#255c7b", hover_color="#22505f").pack(side='right', padx=10)
+                     fg_color="#003d52", hover_color="#255c7b").pack(side='right', padx=10)
 
     def on_checkbox_click(self, event):
         """Handle checkbox column clicks for row selection"""
@@ -1387,11 +1380,11 @@ class ExcelActivityApp:
         
         # Insert data
         for i, row in self.df.iterrows():
-            # Determine row tag based on duplicate status and position
+            # Determine row tag based on duplicate status
             if i in duplicate_indices:
                 tag = 'duplicate_row'  # Yellow highlighting for duplicates
             else:
-                tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+                tag = 'oddrow'  # Use single color for all non-duplicate rows
             
             row_values = list(row)
             if len(row_values) > 0 and 'Select' in self.df.columns:
@@ -1404,7 +1397,7 @@ class ExcelActivityApp:
         
         # Configure row colors
         self.tree.tag_configure('oddrow', background='white')
-        self.tree.tag_configure('evenrow', background='#5b93a4')
+        self.tree.tag_configure('evenrow', background='white')
         # Configure duplicate row highlighting in yellow
         self.tree.tag_configure('duplicate_row', background='yellow', foreground='black', font=('Arial', 10, 'bold'))
         # Configure summation row with bright colors
