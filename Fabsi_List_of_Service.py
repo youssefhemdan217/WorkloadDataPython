@@ -1,5 +1,7 @@
 import os
+import re
 import logging
+import sqlalchemy
 logging.basicConfig(
     filename=os.path.join(os.path.dirname(__file__), 'app.log'),
     level=logging.DEBUG,
@@ -9,7 +11,6 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox, ttk
 import tkinter as tk
 import pandas as pd
-import os
 import subprocess
 import traceback
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
@@ -483,20 +484,6 @@ class ExcelActivityApp:
         # Main content area
         main_top = ctk.CTkFrame(self.root, fg_color="transparent")
         main_top.pack(fill='x', padx=10, pady=1)
-
-        # Project selection dropdown
-        project_label = ctk.CTkLabel(main_top, text="Select Project:", font=ctk.CTkFont(family="Arial", size=12, weight="bold"))
-        project_label.pack(side='left', padx=(0, 5))
-        # Always reload project list from DB to avoid stale cache
-        import sqlalchemy
-        db_path = os.path.join(os.path.dirname(__file__), 'Workload.db')
-        engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
-        with engine.connect() as conn:
-            result = conn.execute(sqlalchemy.text('SELECT name FROM project')).fetchall()
-            project_names = [row[0] for row in result]
-        self.project_combobox = ctk.CTkComboBox(main_top, values=project_names, state="readonly", width=250)
-        self.project_combobox.pack(side='left', padx=(0, 20))
-        self.project_combobox.configure(command=self.on_project_selected)
 
         # Professional, compact form frame with max width - significantly reduced height
         self.entry_frame = ctk.CTkFrame(main_top, height=180, width=1300, corner_radius=10)
@@ -1112,36 +1099,55 @@ class ExcelActivityApp:
         for widget in self.entry_frame.winfo_children():
             widget.destroy()
         self.entries.clear()
+
+        # Get project names from database
+        db_path = os.path.join(os.path.dirname(__file__), 'Workload.db')
+        engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
+        with engine.connect() as conn:
+            result = conn.execute(sqlalchemy.text('SELECT name FROM project')).fetchall()
+            project_names = [row[0] for row in result]
+
+        # Keep the existing project selection if it exists
+        existing_project = None
+        if hasattr(self, 'project_combobox') and self.project_combobox is not None:
+            try:
+                existing_project = self.project_combobox.get()
+            except:
+                pass
+
         # Define the order and grouping of fields for a compact grid
         fields = [
-            ["Stick-Built", "Module", "Activities", "Title"],
-            ["Technical Unit", "Assigned to", "Progress", "Professional Role"],
-            ["Department", "Estimated internal", "Estimated external", "Start date"],
-            ["Due date", "Notes"]
+            ["Select Project"],  # Project selection as first field
+            ["Stick-Built", "Module", "Progress", "Title"],  # Grouped smaller fields together
+            ["Technical Unit", "Assigned to", "Professional Role", "Department"],  # Group person-related fields
+            ["Estimated internal", "Estimated external", "Start date", "Due date"],
+            ["Activities"],  # Activities gets its own row for full width
+            ["Notes"]  # Notes remains full width
         ]
         
         # Set column weights for better distribution
-        self.entry_frame.grid_columnconfigure(0, weight=2)  # Stick-Built
-        self.entry_frame.grid_columnconfigure(1, weight=2)  # Module
-        self.entry_frame.grid_columnconfigure(2, weight=4)  # Activities (double width)
-        self.entry_frame.grid_columnconfigure(3, weight=2)  # Title
+        self.entry_frame.grid_columnconfigure(0, weight=1)  # First column
+        self.entry_frame.grid_columnconfigure(1, weight=1)  # Second column
+        self.entry_frame.grid_columnconfigure(2, weight=1)  # Third column
+        self.entry_frame.grid_columnconfigure(3, weight=1)  # Fourth column
         
-        # Define field widths - optimized to match table columns
+        # Define field widths - optimized based on content type and usage
         field_widths = {
-            "Stick-Built": 180,
-            "Module": 180,
-            "Activities": 320,  # Balanced width for Activities
-            "Title": 220,
-            "Technical Unit": 220,
-            "Assigned to": 220,
-            "Progress": 160,
-            "Professional Role": 220,
-            "Department": 160,
-            "Estimated internal": 160,
-            "Estimated external": 160,
-            "Start date": 160,
-            "Due date": 160,
-            "Notes": 400  # Reasonable width for Notes
+            "Select Project": 300,  # Project dropdown gets full width
+            "Stick-Built": 80,  # Reduced - only Yes/No values
+            "Module": 80,  # Reduced - only Yes/No values
+            "Activities": 400,  # Full width for activities
+            "Title": 140,  # Reduced but still readable
+            "Technical Unit": 140,  # Reduced but still readable
+            "Assigned to": 180,  # Slightly reduced
+            "Progress": 100,  # Reduced - only 3 possible values
+            "Professional Role": 180,  # Slightly reduced
+            "Department": 120,  # Reduced
+            "Estimated internal": 100,  # Reduced - numbers only
+            "Estimated external": 100,  # Reduced - numbers only
+            "Start date": 120,  # Reduced date picker
+            "Due date": 120,  # Reduced date picker
+            "Notes": 400  # Full width for notes
         }
         
         for row_idx, row in enumerate(fields):
@@ -1155,7 +1161,23 @@ class ExcelActivityApp:
                 # Create field
                 width = field_widths.get(col, 200)  # Default width if not specified
                 
-                if col in self.foreign_key_options and col != "Activities":
+                if col == "Select Project":
+                    # Handle Project dropdown
+                    db_path = os.path.join(os.path.dirname(__file__), 'workload.db')
+                    engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
+                    with engine.connect() as conn:
+                        project_names = [row[0] for row in conn.execute(sqlalchemy.text('SELECT name FROM project')).fetchall()]
+                    
+                    widget = ctk.CTkComboBox(self.entry_frame, width=300, state="readonly",
+                                           font=ctk.CTkFont(family="Arial", size=11))
+                    widget.configure(values=project_names)
+                    if hasattr(self, 'current_project') and self.current_project:
+                        widget.set(self.current_project)
+                    widget.configure(command=self.on_project_selected)
+                    self.project_combobox = widget  # Store reference to project combobox
+                    self.entries[col] = widget
+                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=4, sticky='we', padx=10, pady=(0,3))
+                elif col in self.foreign_key_options and col != "Activities":
                     # Use dropdown for all foreign key fields except Activities
                     options = self.foreign_key_options[col]
                     widget = ctk.CTkComboBox(self.entry_frame, width=width, state="readonly",
@@ -1164,7 +1186,7 @@ class ExcelActivityApp:
                     self.entries[col] = widget
                     widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
                 elif col == "Activities":
-                    # Special searchable combobox for Activities
+                    # Special searchable combobox for Activities - full width
                     widget = ctk.CTkComboBox(self.entry_frame, width=width, state="normal",
                                            font=ctk.CTkFont(family="Arial", size=11))
                     # Get existing activities from foreign key options if available
@@ -1184,7 +1206,7 @@ class ExcelActivityApp:
                     widget.bind('<KeyRelease>', on_activities_key_release)
                     
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
+                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=4, sticky='we', padx=10, pady=(0,3))
                 elif col in ["Department", "Estimated internal", "Estimated external"]:
                     # Use entry field for these columns (but not dates)
                     widget = ctk.CTkEntry(self.entry_frame, width=width,
@@ -1199,10 +1221,11 @@ class ExcelActivityApp:
                     self.entries[col] = widget
                     widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
                 elif col == "Notes":
+                    # Give Notes full width
                     widget = ctk.CTkEntry(self.entry_frame, width=width,
                                         font=ctk.CTkFont(family="Arial", size=11))
                     self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=2, sticky='we', padx=10, pady=(0,3))
+                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=4, sticky='we', padx=10, pady=(0,3))
                 else:
                     widget = ctk.CTkEntry(self.entry_frame, width=width,
                                         font=ctk.CTkFont(family="Arial", size=11))
