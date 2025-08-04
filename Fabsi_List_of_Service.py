@@ -485,10 +485,10 @@ class ExcelActivityApp:
         main_top = ctk.CTkFrame(self.root, fg_color="transparent")
         main_top.pack(fill='x', padx=10, pady=1)
 
-        # Professional, compact form frame with max width - significantly reduced height
-        self.entry_frame = ctk.CTkFrame(main_top, height=180, width=1300, corner_radius=10)
+        # Professional, very compact form frame - significantly reduced height for maximum table space
+        self.entry_frame = ctk.CTkFrame(main_top, height=80, width=1360, corner_radius=10)
         self.entry_frame.pack_propagate(False)
-        self.entry_frame.pack(side='left', padx=10, pady=3, anchor='nw')
+        self.entry_frame.pack(side='left', padx=5, pady=3, anchor='nw')
 
         # Button frame with all options - reduced spacing
         button_frame = ctk.CTkFrame(self.root, fg_color="transparent")
@@ -1113,124 +1113,142 @@ class ExcelActivityApp:
             try:
                 existing_project = self.project_combobox.get()
             except:
-                pass
+                existing_project = None
 
-        # Define the order and grouping of fields for a compact grid
-        fields = [
-            ["Select Project"],  # Project selection as first field
-            ["Stick-Built", "Module", "Progress", "Title"],  # Grouped smaller fields together
-            ["Technical Unit", "Assigned to", "Professional Role", "Department"],  # Group person-related fields
-            ["Estimated internal", "Estimated external", "Start date", "Due date"],
-            ["Activities"],  # Activities gets its own row for full width
-            ["Notes"]  # Notes remains full width
-        ]
-        
-        # Set column weights for better distribution
+        # Configure grid columns for better distribution - 6 columns for more compact layout
         self.entry_frame.grid_columnconfigure(0, weight=1)  # First column
         self.entry_frame.grid_columnconfigure(1, weight=1)  # Second column
         self.entry_frame.grid_columnconfigure(2, weight=1)  # Third column
         self.entry_frame.grid_columnconfigure(3, weight=1)  # Fourth column
+        self.entry_frame.grid_columnconfigure(4, weight=1)  # Fifth column
+        self.entry_frame.grid_columnconfigure(5, weight=1)  # Sixth column
         
-        # Define field widths - optimized based on content type and usage
+        # Row 1: Stick-Built, Module, Document Number, Title, Department, Estimated Internal
+        row1_fields = ["Stick-Built", "Module", "Document Number", "Title", "Department", "Estimated internal"]
+        # Row 2: Technical Unit, Assigned to, Progress, Professional Role, Select Project, Estimated External
+        row2_fields = ["Technical Unit", "Assigned to", "Progress", "Professional Role", "Select Project", "Estimated external"]
+        # Row 3: Activities (spanning 4 columns), Notes (spanning 2 columns)
+        
+        # Define field widths optimized for the 6-column layout - more compact
         field_widths = {
-            "Select Project": 300,  # Project dropdown gets full width
-            "Stick-Built": 80,  # Reduced - only Yes/No values
-            "Module": 80,  # Reduced - only Yes/No values
-            "Activities": 400,  # Full width for activities
-            "Title": 140,  # Reduced but still readable
-            "Technical Unit": 140,  # Reduced but still readable
-            "Assigned to": 180,  # Slightly reduced
-            "Progress": 100,  # Reduced - only 3 possible values
-            "Professional Role": 180,  # Slightly reduced
-            "Department": 120,  # Reduced
-            "Estimated internal": 100,  # Reduced - numbers only
-            "Estimated external": 100,  # Reduced - numbers only
-            "Start date": 120,  # Reduced date picker
-            "Due date": 120,  # Reduced date picker
-            "Notes": 400  # Full width for notes
+            "Stick-Built": 100,
+            "Module": 100,
+            "Document Number": 120,
+            "Title": 140,
+            "Department": 100,
+            "Estimated internal": 120,
+            "Technical Unit": 140,
+            "Assigned to": 140,
+            "Progress": 100,
+            "Professional Role": 140,
+            "Select Project": 140,
+            "Estimated external": 120,
+            "Activities": 500,  # Will span 4 columns
+            "Notes": 300,  # Will span 2 columns
         }
         
-        for row_idx, row in enumerate(fields):
-            for col_idx, col in enumerate(row):
-                # Create label - reduced spacing
-                lbl = ctk.CTkLabel(self.entry_frame, text=col, 
-                                  font=ctk.CTkFont(family="Arial", size=11, weight="bold"),
-                                  anchor="w")
-                lbl.grid(row=row_idx*2, column=col_idx, sticky='w', padx=10, pady=(5,2))
-                
-                # Create field
-                width = field_widths.get(col, 200)  # Default width if not specified
-                
-                if col == "Select Project":
-                    # Handle Project dropdown
-                    db_path = os.path.join(os.path.dirname(__file__), 'workload.db')
-                    engine = sqlalchemy.create_engine(f'sqlite:///{db_path}')
-                    with engine.connect() as conn:
-                        project_names = [row[0] for row in conn.execute(sqlalchemy.text('SELECT name FROM project')).fetchall()]
-                    
-                    widget = ctk.CTkComboBox(self.entry_frame, width=300, state="readonly",
-                                           font=ctk.CTkFont(family="Arial", size=11))
-                    widget.configure(values=project_names)
-                    if hasattr(self, 'current_project') and self.current_project:
-                        widget.set(self.current_project)
-                    widget.configure(command=self.on_project_selected)
-                    self.project_combobox = widget  # Store reference to project combobox
-                    self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=4, sticky='we', padx=10, pady=(0,3))
-                elif col in self.foreign_key_options and col != "Activities":
-                    # Use dropdown for all foreign key fields except Activities
-                    options = self.foreign_key_options[col]
-                    widget = ctk.CTkComboBox(self.entry_frame, width=width, state="readonly",
-                                           font=ctk.CTkFont(family="Arial", size=11))
-                    widget.configure(values=[o['name'] for o in options])
-                    self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
-                elif col == "Activities":
-                    # Special searchable combobox for Activities - full width
-                    widget = ctk.CTkComboBox(self.entry_frame, width=width, state="normal",
-                                           font=ctk.CTkFont(family="Arial", size=11))
-                    # Get existing activities from foreign key options if available
-                    if col in self.foreign_key_options:
-                        activity_options = [o['name'] for o in self.foreign_key_options[col]]
-                        widget.configure(values=activity_options)
-                    else:
-                        widget.configure(values=[])
-                    
-                    # Set combo box to start empty
-                    widget.set("")
-                    
-                    # Bind key release event for real-time search
-                    def on_activities_key_release(event, combo_widget=widget):
-                        self.filter_activities_dropdown(combo_widget)
-                    
-                    widget.bind('<KeyRelease>', on_activities_key_release)
-                    
-                    self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=4, sticky='we', padx=10, pady=(0,3))
-                elif col in ["Department", "Estimated internal", "Estimated external"]:
-                    # Use entry field for these columns (but not dates)
-                    widget = ctk.CTkEntry(self.entry_frame, width=width,
-                                        font=ctk.CTkFont(family="Arial", size=11))
-                    if col == "Department":
-                        widget.insert(0, "FABSI")
-                    self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
-                elif col in ["Start date", "Due date"]:
-                    # Use custom date picker for date fields
-                    widget = CustomDatePicker(self.entry_frame, width=width)
-                    self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
-                elif col == "Notes":
-                    # Give Notes full width
-                    widget = ctk.CTkEntry(self.entry_frame, width=width,
-                                        font=ctk.CTkFont(family="Arial", size=11))
-                    self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, columnspan=4, sticky='we', padx=10, pady=(0,3))
-                else:
-                    widget = ctk.CTkEntry(self.entry_frame, width=width,
-                                        font=ctk.CTkFont(family="Arial", size=11))
-                    self.entries[col] = widget
-                    widget.grid(row=row_idx*2+1, column=col_idx, sticky='we', padx=10, pady=(0,3))
+        # Create Row 1 fields
+        for col_idx, field in enumerate(row1_fields):
+            # Create label - much smaller spacing
+            lbl = ctk.CTkLabel(self.entry_frame, text=field, 
+                              font=ctk.CTkFont(family="Arial", size=9, weight="bold"),
+                              anchor="w")
+            lbl.grid(row=0, column=col_idx, sticky='w', padx=3, pady=(2,0))
+            
+            # Create field widget
+            width = field_widths.get(field, 100)
+            
+            if field in self.foreign_key_options:
+                # Use dropdown for foreign key fields
+                options = self.foreign_key_options[field]
+                widget = ctk.CTkComboBox(self.entry_frame, width=width, state="readonly",
+                                       font=ctk.CTkFont(family="Arial", size=9), height=24)
+                widget.configure(values=[o['name'] for o in options])
+            elif field == "Department":
+                # Use entry field with default value
+                widget = ctk.CTkEntry(self.entry_frame, width=width,
+                                    font=ctk.CTkFont(family="Arial", size=9), height=24)
+                widget.insert(0, "FABSI")
+            else:
+                # Regular entry field
+                widget = ctk.CTkEntry(self.entry_frame, width=width,
+                                    font=ctk.CTkFont(family="Arial", size=9), height=24)
+            
+            self.entries[field] = widget
+            widget.grid(row=1, column=col_idx, sticky='we', padx=3, pady=(0,1))
+        
+        # Create Row 2 fields
+        for col_idx, field in enumerate(row2_fields):
+            # Create label - much smaller spacing
+            lbl = ctk.CTkLabel(self.entry_frame, text=field, 
+                              font=ctk.CTkFont(family="Arial", size=9, weight="bold"),
+                              anchor="w")
+            lbl.grid(row=2, column=col_idx, sticky='w', padx=3, pady=(2,0))
+            
+            # Create field widget
+            width = field_widths.get(field, 100)
+            
+            if field == "Select Project":
+                # Project dropdown
+                widget = ctk.CTkComboBox(self.entry_frame, width=width, state="readonly",
+                                       font=ctk.CTkFont(family="Arial", size=9), height=24)
+                widget.configure(values=project_names)
+                if hasattr(self, 'current_project') and self.current_project:
+                    widget.set(self.current_project)
+                widget.configure(command=self.on_project_selected)
+                self.project_combobox = widget
+            elif field in self.foreign_key_options:
+                # Use dropdown for foreign key fields
+                options = self.foreign_key_options[field]
+                widget = ctk.CTkComboBox(self.entry_frame, width=width, state="readonly",
+                                       font=ctk.CTkFont(family="Arial", size=9), height=24)
+                widget.configure(values=[o['name'] for o in options])
+            else:
+                # Regular entry field
+                widget = ctk.CTkEntry(self.entry_frame, width=width,
+                                    font=ctk.CTkFont(family="Arial", size=9), height=24)
+            
+            self.entries[field] = widget
+            widget.grid(row=3, column=col_idx, sticky='we', padx=3, pady=(0,1))
+        
+        # Create Row 3: Activities (spanning columns 0-3) and Notes (spanning columns 4-5)
+        # Activities label and field
+        activities_lbl = ctk.CTkLabel(self.entry_frame, text="Activities", 
+                                     font=ctk.CTkFont(family="Arial", size=9, weight="bold"),
+                                     anchor="w")
+        activities_lbl.grid(row=4, column=0, sticky='w', padx=3, pady=(2,0))
+        
+        # Special searchable combobox for Activities - spanning 4 columns
+        activities_widget = ctk.CTkComboBox(self.entry_frame, width=450, state="normal",
+                                          font=ctk.CTkFont(family="Arial", size=9), height=24)
+        # Get existing activities from foreign key options if available
+        if "Activities" in self.foreign_key_options:
+            activity_options = [o['name'] for o in self.foreign_key_options["Activities"]]
+            activities_widget.configure(values=activity_options)
+        else:
+            activities_widget.configure(values=[])
+        
+        # Set combo box to start empty
+        activities_widget.set("")
+        
+        # Bind key release event for real-time search
+        def on_activities_key_release(event, combo_widget=activities_widget):
+            self.filter_activities_dropdown(combo_widget)
+        
+        activities_widget.bind('<KeyRelease>', on_activities_key_release)
+        self.entries["Activities"] = activities_widget
+        activities_widget.grid(row=5, column=0, columnspan=4, sticky='we', padx=3, pady=(0,1))
+        
+        # Notes label and field in columns 4-5
+        notes_lbl = ctk.CTkLabel(self.entry_frame, text="Notes", 
+                                font=ctk.CTkFont(family="Arial", size=9, weight="bold"),
+                                anchor="w")
+        notes_lbl.grid(row=4, column=4, sticky='w', padx=3, pady=(2,0))
+        
+        notes_widget = ctk.CTkEntry(self.entry_frame, width=260,
+                                   font=ctk.CTkFont(family="Arial", size=9), height=24)
+        self.entries["Notes"] = notes_widget
+        notes_widget.grid(row=5, column=4, columnspan=2, sticky='we', padx=3, pady=(0,1))
 
     def update_activities_filter(self, event):
         text = self.entries["Activities"].get()
