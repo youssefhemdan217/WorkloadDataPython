@@ -436,19 +436,19 @@ class ExcelActivityApp:
         header_frame.pack(fill='x', padx=10, pady=(2, 3))
         header_frame.pack_propagate(False)
 
-        # Left logo (Saipem) - much smaller size
-        left_logo_frame = ctk.CTkFrame(header_frame, width=60, height=35, corner_radius=5)
+        # Left logo (Saipem) - increased size for better visibility
+        left_logo_frame = ctk.CTkFrame(header_frame, width=80, height=35, corner_radius=5)
         left_logo_frame.pack(side='left', padx=5)
         left_logo_frame.pack_propagate(False)
         
         # Load Saipem logo
         saipem_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'saipem_logo.png')
-        saipem_logo_image = self.load_logo_image(saipem_logo_path, 55, 30)
+        saipem_logo_image = self.load_logo_image(saipem_logo_path, 75, 30)
         
         if saipem_logo_image:
             left_logo_label = ctk.CTkLabel(left_logo_frame, image=saipem_logo_image, text="")
         else:
-            left_logo_label = ctk.CTkLabel(left_logo_frame, text="SAIPEM", font=("Arial", 7), text_color="#003d52")
+            left_logo_label = ctk.CTkLabel(left_logo_frame, text="SAIPEM", font=("Arial", 9), text_color="#003d52")
         left_logo_label.pack(expand=True)
 
         # Title in center - smaller font but still readable
