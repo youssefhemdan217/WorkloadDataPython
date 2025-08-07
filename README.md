@@ -1,4 +1,4 @@
-# Workload Data Python Application
+# FABSI - List of Service Application
 
 ## Overview
 This application is a full-stack workload management tool for engineering projects. It features:
@@ -6,6 +6,20 @@ This application is a full-stack workload management tool for engineering projec
 - A Flask RESTful API for CRUD operations and integration
 - SQLite database for persistent storage
 - Excel import/export for bulk data management
+
+## 🚀 Quick Deployment (For Company Workstations)
+
+### For End Users:
+1. Download the deployment package from your IT department
+2. Run `install_fabsi.bat` as Administrator
+3. Use the desktop shortcut to start the application
+4. **No Python installation required!**
+
+### For IT Administrators:
+See `DEPLOYMENT_GUIDE.md` for complete deployment instructions.
+
+### For Developers:
+Run `build_deployment.bat` to create a standalone executable.
 
 ## How to Run the Application
 
