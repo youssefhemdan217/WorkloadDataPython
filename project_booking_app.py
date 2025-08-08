@@ -262,6 +262,14 @@ class ProjectBookingApp:
             width=120
         )
         self.export_btn.pack(side="left", padx=3)
+        
+        self.edit_mode_btn = ctk.CTkButton(
+            button_frame, 
+            text="Edit Mode: Double-Click", 
+            command=self.toggle_edit_mode,
+            width=140
+        )
+        self.edit_mode_btn.pack(side="left", padx=3)
     
     def setup_employee_data_table_only(self):
         """Setup only the employee data table to maximize space"""
@@ -322,8 +330,17 @@ class ProjectBookingApp:
         emp_tree_container.grid_rowconfigure(0, weight=1)
         emp_tree_container.grid_columnconfigure(0, weight=1)
         
-        # Bind double-click event for editing (simplified - mainly for booking data)
+        # Excel-like editing setup
+        self.edit_mode = "double"  # "single" or "double" click
+        
+        # Bind double-click event for editing (Excel-like behavior)
         self.employee_tree.bind('<Double-1>', self.on_simplified_cell_edit)
+        
+        # Add keyboard shortcut for editing (F2 like Excel)
+        self.employee_tree.bind('<F2>', self.on_keyboard_edit)
+        
+        # Add visual feedback for selected cells
+        self.employee_tree.bind('<Button-1>', self.on_cell_select)
         
         # Load employee data initially
         self.load_employee_data_grid()
@@ -1103,8 +1120,9 @@ class ProjectBookingApp:
                 logging.error(f"Project booking deletion error: {e}")
     
     def on_simplified_cell_edit(self, event):
-        """Handle double-click on cell for editing project booking data"""
+        """Excel-like cell editing: Click to edit any cell directly"""
         try:
+            # Get the clicked item and column
             item = self.employee_tree.selection()[0]
             column = self.employee_tree.identify_column(event.x)
             
@@ -1115,32 +1133,291 @@ class ProjectBookingApp:
             current_values = list(self.employee_tree.item(item, 'values'))
             if col_idx >= len(current_values):
                 return
-            
-            # Get column names for complete booking view
+                
+            # Get the actual column names from the data query to map to database fields
             complete_columns = (
-                "ID", "Employee", "Technical Unit", "Project", "Service", 
-                "Est. Hours", "Actual Hours", "Hourly Rate", "Total Cost", 
-                "Status", "Booking Date", "Start Date", "End Date", 
-                "Notes", "Created By", "Approved By", "Created At", "Updated At"
+                "ID", "Cost Center", "GHRS ID", "Employee Name", "Dept. Description",
+                "Work Location", "Business Unit", "Tipo", "Tipo Description", "SAP Tipo",
+                "SAABU Rate (EUR)", "SAABU Rate (USD)", "Local Agency Rate (USD)", "Unit Rate (USD)",
+                "Monthly Hours", "Annual Hours", "Workload 2025_Planned", "Workload 2025_Actual",
+                "Remark", "Project", "Item", "Technical Unit", "Activities", "Booking Hours",
+                "Booking Cost (Forecast)", "Booking Period", "Booking hours (Accepted by Project)",
+                "Booking Period (Accepted by Project)", "Booking hours (Extra)",
+                "Est. Hours", "Actual Hours", "Hourly Rate", "Total Cost", "Status",
+                "Booking Date", "Start Date", "End Date", "Notes"
             )
             
-            if col_idx == 0:  # Don't edit ID
+            # Map display columns to database column names
+            db_column_map = {
+                0: None,  # ID - not editable
+                1: "cost_center",
+                2: "ghrs_id", 
+                3: "employee_name",
+                4: "dept_description",
+                5: "work_location",
+                6: "business_unit",
+                7: "tipo",
+                8: "tipo_description", 
+                9: "sap_tipo",
+                10: "saabu_rate_eur",
+                11: "saabu_rate_usd",
+                12: "local_agency_rate_usd",
+                13: "unit_rate_usd",
+                14: "monthly_hours",
+                15: "annual_hours",
+                16: "workload_2025_planned",
+                17: "workload_2025_actual",
+                18: "remark",
+                19: "project_name",
+                20: "item",
+                21: "technical_unit_name",
+                22: "activities_name",
+                23: "booking_hours",
+                24: "booking_cost_forecast",
+                25: "booking_period",
+                26: "booking_hours_accepted",
+                27: "booking_period_accepted", 
+                28: "booking_hours_extra",
+                29: "estimated_hours",
+                30: "actual_hours",
+                31: "hourly_rate",
+                32: "total_cost",
+                33: "booking_status",
+                34: "booking_date",
+                35: "start_date",
+                36: "end_date",
+                37: "notes"
+            }
+            
+            # Check if column is editable
+            if col_idx == 0:  # ID column
                 messagebox.showinfo("Info", "Booking ID cannot be edited")
                 return
-            elif col_idx in [1, 2, 3, 4]:  # Foreign key fields
-                messagebox.showinfo("Info", "Use the dropdown filters to change Employee, Technical Unit, Project, or Service assignments")
-                return
-            elif col_idx in [16, 17]:  # Created/Updated timestamps
-                messagebox.showinfo("Info", "Timestamp fields are automatically managed")
+                
+            db_column = db_column_map.get(col_idx)
+            if not db_column:
+                messagebox.showinfo("Info", "This column cannot be edited")
                 return
             
             column_name = complete_columns[col_idx]
             current_value = current_values[col_idx] if col_idx < len(current_values) else ""
             
-            messagebox.showinfo("Info", f"Direct editing of {column_name} in the table view is not yet implemented.\nUse the service assignment panel to modify booking details.")
+            # Remove "N/A" or format current value for editing
+            if current_value == "N/A":
+                current_value = ""
             
-        except (IndexError, ValueError):
+            # Create inline editing dialog
+            self.create_inline_edit_dialog(item, col_idx, column_name, current_value, db_column)
+            
+        except (IndexError, ValueError, KeyError):
             pass  # No item selected or invalid column
+
+    def create_inline_edit_dialog(self, tree_item, col_idx, column_name, current_value, db_column):
+        """Create a small dialog for editing cell value like Excel"""
+        # Get the booking ID for database update
+        item_values = self.employee_tree.item(tree_item)['values']
+        booking_id = item_values[0]
+        
+        # Store current row values for updating the display
+        current_row_values = list(item_values)
+        
+        # Create compact edit dialog
+        edit_dialog = ctk.CTkToplevel(self.root)
+        edit_dialog.title(f"Edit {column_name}")
+        edit_dialog.geometry("400x200")
+        edit_dialog.transient(self.root)
+        edit_dialog.grab_set()
+        
+        # Center the dialog
+        edit_dialog.update_idletasks()
+        x = (edit_dialog.winfo_screenwidth() // 2) - (400 // 2)
+        y = (edit_dialog.winfo_screenheight() // 2) - (200 // 2)
+        edit_dialog.geometry(f"400x200+{x}+{y}")
+        
+        # Content frame
+        content_frame = ctk.CTkFrame(edit_dialog)
+        content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Label
+        ctk.CTkLabel(content_frame, text=f"Edit {column_name}:", 
+                    font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(0, 10))
+        
+        # Determine input type based on column
+        numeric_columns = ["saabu_rate_eur", "saabu_rate_usd", "local_agency_rate_usd", "unit_rate_usd",
+                          "workload_2025_planned", "workload_2025_actual", "booking_hours", 
+                          "booking_cost_forecast", "booking_hours_accepted", "booking_hours_extra",
+                          "estimated_hours", "actual_hours", "hourly_rate", "total_cost"]
+        
+        integer_columns = ["monthly_hours", "annual_hours"]
+        
+        date_columns = ["booking_date", "start_date", "end_date"]
+        
+        text_area_columns = ["remark", "notes", "dept_description", "tipo_description"]
+        
+        if db_column in text_area_columns:
+            # Text area for longer text
+            edit_widget = ctk.CTkTextbox(content_frame, height=80, width=350)
+            edit_widget.pack(pady=5, fill="x")
+            if current_value and current_value != "N/A":
+                edit_widget.insert("1.0", current_value)
+        else:
+            # Single line entry
+            edit_widget = ctk.CTkEntry(content_frame, width=350, placeholder_text=f"Enter {column_name.lower()}")
+            edit_widget.pack(pady=5, fill="x")
+            if current_value and current_value != "N/A":
+                edit_widget.insert(0, current_value)
+        
+        # Validation info
+        if db_column in numeric_columns:
+            info_text = "Enter a decimal number (e.g., 123.45)"
+        elif db_column in integer_columns:
+            info_text = "Enter a whole number (e.g., 40)"
+        elif db_column in date_columns:
+            info_text = "Enter date in YYYY-MM-DD format (e.g., 2025-01-15)"
+        else:
+            info_text = "Enter text value"
+            
+        ctk.CTkLabel(content_frame, text=info_text, 
+                    font=ctk.CTkFont(size=10), text_color="gray").pack(pady=(0, 10))
+        
+        # Buttons
+        button_frame = ctk.CTkFrame(content_frame)
+        button_frame.pack(fill="x", pady=(10, 0))
+        
+        def save_change():
+            try:
+                # Get the new value
+                if db_column in text_area_columns:
+                    new_value = edit_widget.get("1.0", "end-1c").strip()
+                else:
+                    new_value = edit_widget.get().strip()
+                
+                # Validate numeric inputs
+                if db_column in numeric_columns and new_value:
+                    try:
+                        float(new_value)
+                    except ValueError:
+                        messagebox.showerror("Error", "Please enter a valid decimal number")
+                        return
+                        
+                if db_column in integer_columns and new_value:
+                    try:
+                        int(new_value)
+                    except ValueError:
+                        messagebox.showerror("Error", "Please enter a valid whole number")
+                        return
+                
+                # Date validation
+                if db_column in date_columns and new_value:
+                    try:
+                        from datetime import datetime
+                        datetime.strptime(new_value, '%Y-%m-%d')
+                    except ValueError:
+                        messagebox.showerror("Error", "Please enter date in YYYY-MM-DD format")
+                        return
+                
+                # Update database
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                
+                # Handle empty values
+                if new_value == "":
+                    new_value = None
+                
+                # Update the specific column
+                cursor.execute(f"UPDATE project_bookings SET {db_column} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", 
+                              (new_value, booking_id))
+                
+                # Special handling for calculated fields
+                if db_column in ["estimated_hours", "hourly_rate"]:
+                    # Recalculate total_cost if hours or rate changed
+                    cursor.execute("SELECT estimated_hours, hourly_rate FROM project_bookings WHERE id = ?", (booking_id,))
+                    hours_rate = cursor.fetchone()
+                    if hours_rate and hours_rate[0] and hours_rate[1]:
+                        total_cost = float(hours_rate[0]) * float(hours_rate[1])
+                        cursor.execute("UPDATE project_bookings SET total_cost = ? WHERE id = ?", (total_cost, booking_id))
+                
+                conn.commit()
+                conn.close()
+                
+                # Update the stored row values
+                current_row_values[col_idx] = new_value if new_value is not None else "N/A"
+                
+                # Format display value
+                if db_column in numeric_columns and new_value:
+                    current_row_values[col_idx] = f"{float(new_value):.2f}"
+                elif db_column in integer_columns and new_value:
+                    current_row_values[col_idx] = str(int(new_value))
+                
+                # Find the item by booking_id and update it (safer than using tree_item reference)
+                for item in self.employee_tree.get_children():
+                    values = self.employee_tree.item(item)['values']
+                    if values and values[0] == booking_id:
+                        self.employee_tree.item(item, values=current_row_values)
+                        break
+                
+                edit_dialog.destroy()
+                messagebox.showinfo("Success", f"{column_name} updated successfully!")
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to update {column_name}: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        def cancel_edit():
+            edit_dialog.destroy()
+        
+        # Buttons
+        ctk.CTkButton(button_frame, text="Save", command=save_change, width=100).pack(side="left", padx=(0, 10))
+        ctk.CTkButton(button_frame, text="Cancel", command=cancel_edit, width=100).pack(side="left")
+        
+        # Focus on the input widget and select all text
+        edit_widget.focus()
+        if not db_column in text_area_columns and current_value and current_value != "N/A":
+            edit_widget.select_range(0, tk.END)
+        
+        # Bind Enter key to save
+        edit_dialog.bind('<Return>', lambda e: save_change())
+        edit_dialog.bind('<Escape>', lambda e: cancel_edit())
+
+    def on_keyboard_edit(self, event):
+        """Handle F2 key press for editing like Excel"""
+        try:
+            if self.employee_tree.selection():
+                # Simulate a double-click at the center of the selected cell
+                item = self.employee_tree.selection()[0]
+                bbox = self.employee_tree.bbox(item)
+                if bbox:
+                    # Create a fake event for the center of the first column
+                    fake_event = type('Event', (), {})()
+                    fake_event.x = bbox[0] + 50  # Approximate center of first editable column
+                    fake_event.y = bbox[1] + bbox[3] // 2
+                    self.on_simplified_cell_edit(fake_event)
+        except Exception:
+            pass
+    
+    def on_cell_select(self, event):
+        """Handle cell selection for visual feedback"""
+        try:
+            # This provides visual feedback when clicking on cells
+            # The actual editing happens on double-click
+            pass
+        except Exception:
+            pass
+            
+    def toggle_edit_mode(self):
+        """Toggle between single-click and double-click editing modes"""
+        if self.edit_mode == "double":
+            self.edit_mode = "single"
+            self.employee_tree.bind('<Button-1>', self.on_simplified_cell_edit)
+            self.edit_mode_btn.configure(text="Edit Mode: Single-Click")
+            messagebox.showinfo("Edit Mode", "Single-click editing enabled!\nClick any cell to edit directly.")
+        else:
+            self.edit_mode = "double"
+            self.employee_tree.unbind('<Button-1>')
+            self.employee_tree.bind('<Button-1>', self.on_cell_select)
+            self.edit_mode_btn.configure(text="Edit Mode: Double-Click")
+            messagebox.showinfo("Edit Mode", "Double-click editing enabled!\nDouble-click any cell to edit, or press F2.")
     
     def open_employee_dialog(self, employee_id=None):
         """Open dialog for adding/editing employee with all 29 fields"""
