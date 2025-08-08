@@ -6,6 +6,12 @@
 			"type": "shell",
 			"command": "python Fabsi_List_of_Service.py",
 			"group": "test"
+		},
+		{
+			"label": "Run Project Booking App",
+			"type": "shell",
+			"command": "python project_booking_app.py",
+			"group": "test"
 		}
 	]
 }
