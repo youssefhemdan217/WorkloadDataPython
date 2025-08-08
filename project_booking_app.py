@@ -745,32 +745,51 @@ class ProjectBookingApp:
                                  remark) = (None, None, None, None, None, None, None, None,
                                            0.00, 0.00, 0.00, 0.00, 0, 0, 0.00, 0.00, None)
                             
-                            # Insert comprehensive booking record
+                            # Parse first_name and last_name from full name (FIXED VERSION 2025-08-08)
+                            cursor.execute("SELECT name FROM employee WHERE id = ?", (employee_id,))
+                            name_data = cursor.fetchone()
+                            full_name = name_data[0] if name_data and name_data[0] else ""
+                            
+                            # Try to split the name into first and last names
+                            if full_name and full_name.strip():
+                                name_parts = full_name.strip().split()
+                                if len(name_parts) >= 2:
+                                    first_name = name_parts[0]
+                                    last_name = " ".join(name_parts[1:])
+                                else:
+                                    first_name = ""
+                                    last_name = full_name
+                            else:
+                                first_name = ""
+                                last_name = ""
+                            
+                            # Insert comprehensive booking record with all 47 columns (excluding auto-increment id)
                             cursor.execute("""
                                 INSERT INTO project_bookings 
                                 (employee_id, technical_unit_id, project_id, service_id,
                                  estimated_hours, actual_hours, hourly_rate, total_cost, 
                                  booking_status, booking_date, start_date, end_date, notes,
                                  created_by, approved_by, created_at, updated_at,
-                                 cost_center, ghrs_id, employee_name, dept_description,
+                                 cost_center, ghrs_id, last_name, first_name, dept_description,
                                  work_location, business_unit, tipo, tipo_description, sap_tipo,
                                  saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
                                  monthly_hours, annual_hours, workload_2025_planned, workload_2025_actual,
                                  remark, project_name, item, technical_unit_name, activities_name,
                                  booking_hours, booking_cost_forecast, booking_period,
-                                 booking_hours_accepted, booking_period_accepted, booking_hours_extra)
+                                 booking_hours_accepted, booking_period_accepted, booking_hours_extra,
+                                 employee_name)
                                 VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, 'Pending', 
                                         CURRENT_DATE, ?, ?, ?, NULL, NULL, 
                                         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
                                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
-                                        ?, NULL, ?, ?, 0.00, 0.00, NULL, 0.00, NULL, 0.00)
+                                        ?, NULL, ?, ?, 0.00, 0.00, NULL, 0.00, NULL, 0.00, ?)
                             """, (employee_id, tech_unit_id, project_id, service_id,
                                   total_estimated, start_date, end_date, service_notes,
-                                  cost_center, ghrs_id, emp_name, dept_description,
+                                  cost_center, ghrs_id, last_name, first_name, dept_description,
                                   work_location, business_unit, tipo, tipo_description, sap_tipo,
                                   saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
                                   monthly_hours, annual_hours, workload_2025_planned, workload_2025_actual,
-                                  remark, project_name_val, tu_name_val, activity_name_val))
+                                  remark, project_name_val, tu_name_val, activity_name_val, emp_name))
                             bookings_added += 1
                     
                     conn.commit()
