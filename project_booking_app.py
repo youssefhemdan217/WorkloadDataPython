@@ -19,9 +19,9 @@ logging.basicConfig(
     format='%(asctime)s %(levelname)s %(message)s'
 )
 
-# Set customtkinter appearance
+# Set customtkinter appearance - Saipem theme
 ctk.set_appearance_mode("light")
-ctk.set_default_color_theme("blue")
+ctk.set_default_color_theme("blue")  # We'll override with custom Saipem colors
 
 class ProjectBookingApp:
     """Project Booking & Resource Allocation Application"""
@@ -52,6 +52,12 @@ class ProjectBookingApp:
         
         # Store selected rows for multi-select deletion
         self.selected_rows = set()
+        
+        # Filter and sort functionality
+        self.active_column_filters = {}
+        self.filter_vars = {}
+        self.current_sort_column = None
+        self.current_sort_ascending = True
         
         # Auto-refresh timer (refresh every 30 seconds)
         self.auto_refresh_enabled = True
@@ -114,8 +120,31 @@ class ProjectBookingApp:
             print(f"Error checking database: {e}")
             logging.error(f"Database check error: {e}")
     
+    def load_logo_image(self, image_path, width, height):
+        """Load and resize logo image for display"""
+        try:
+            if os.path.exists(image_path):
+                # Load and resize the image
+                pil_image = Image.open(image_path)
+                # Convert to RGBA if not already
+                if pil_image.mode != 'RGBA':
+                    pil_image = pil_image.convert('RGBA')
+                # Resize maintaining aspect ratio
+                pil_image.thumbnail((width, height), Image.Resampling.LANCZOS)
+                # Convert to CTkImage
+                return ctk.CTkImage(light_image=pil_image, dark_image=pil_image, size=(width, height))
+            else:
+                print(f"Logo image not found: {image_path}")
+                return None
+        except Exception as e:
+            print(f"Error loading logo image {image_path}: {e}")
+            return None
+    
     def setup_ui(self):
         """Setup the main user interface - Dropdowns + Employee Data Table Only"""
+        # Add Saipem header first
+        self.setup_header()
+        
         # Main container
         self.main_frame = ctk.CTkFrame(self.root)
         self.main_frame.pack(fill="both", expand=True, padx=3, pady=3)  # Minimal padding for maximum space
@@ -127,45 +156,70 @@ class ProjectBookingApp:
         self.setup_employee_data_table_only()
         
     def setup_header(self):
-        """Setup application header"""
-        header_frame = ctk.CTkFrame(self.main_frame)
-        header_frame.pack(fill="x", padx=5, pady=(5, 5))  # Minimal padding
+        """Setup application header with Saipem branding"""
+        # Create header frame with Saipem colors
+        header_frame = ctk.CTkFrame(self.root, height=60, corner_radius=10, fg_color="#003d52")
+        header_frame.pack(fill='x', padx=10, pady=(5, 5))
+        header_frame.pack_propagate(False)
+
+        # Left logo (Saipem)
+        left_logo_frame = ctk.CTkFrame(header_frame, width=100, height=50, corner_radius=5, fg_color="transparent")
+        left_logo_frame.pack(side='left', padx=10)
+        left_logo_frame.pack_propagate(False)
         
-        # Logo and title
+        # Load Saipem logo
+        saipem_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'saipem_logo.png')
+        saipem_logo_image = self.load_logo_image(saipem_logo_path, 90, 45)
+        
+        if saipem_logo_image:
+            left_logo_label = ctk.CTkLabel(left_logo_frame, image=saipem_logo_image, text="")
+        else:
+            left_logo_label = ctk.CTkLabel(left_logo_frame, text="SAIPEM", 
+                                         font=ctk.CTkFont(family="Arial", size=12, weight="bold"), 
+                                         text_color="white")
+        left_logo_label.pack(expand=True)
+
+        # Title in center
+        title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        title_frame.pack(side='left', expand=True)
         title_label = ctk.CTkLabel(
-            header_frame, 
+            title_frame, 
             text="Project Booking & Resource Allocation System",
-            font=ctk.CTkFont(size=16, weight="bold")  # Smaller font
+            font=ctk.CTkFont(family="Arial", size=18, weight="bold"),
+            text_color="white"
         )
-        title_label.pack(pady=5)  # Minimal padding
+        title_label.pack(expand=True)
+
+        # Action buttons in header
+        button_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        button_frame.pack(side="right", padx=10)
         
-        # Action buttons
-        button_frame = ctk.CTkFrame(header_frame)
-        button_frame.pack(fill="x", padx=10, pady=(0, 3))  # Minimal padding
-        
+        # Saipem themed buttons
         self.import_btn = ctk.CTkButton(
             button_frame, 
-            text="Import Excel Data", 
+            text="📥 Import Excel", 
             command=self.import_excel_data,
-            width=150
+            width=130,
+            fg_color="#ef8827",
+            hover_color="#d67620",
+            font=ctk.CTkFont(size=12)
         )
-        self.import_btn.pack(side="left", padx=5)
+        self.import_btn.pack(side="top", pady=2)
         
         self.export_btn = ctk.CTkButton(
             button_frame, 
-            text="Export Report", 
+            text="📊 Export Report", 
             command=self.export_report,
-            width=150
+            width=130,
+            fg_color="#ef8827",
+            hover_color="#d67620",
+            font=ctk.CTkFont(size=12)
         )
-        self.export_btn.pack(side="left", padx=5)
+        self.export_btn.pack(side="top", pady=2)
         
-        self.refresh_btn = ctk.CTkButton(
-            button_frame, 
-            text="Refresh Data", 
-            command=self.load_data,
-            width=150
-        )
-        self.refresh_btn.pack(side="left", padx=5)
+        # Add separator
+        separator_frame = ctk.CTkFrame(self.root, height=2, fg_color="#ef8827")
+        separator_frame.pack(fill='x', padx=10, pady=(0, 5))
     
     def setup_selection_panel(self):
         """Setup the three-level selection panel - FOR ADDING DATA"""
@@ -230,15 +284,19 @@ class ProjectBookingApp:
             button_frame, 
             text="Delete Booking", 
             command=self.delete_employee_record,
-            width=120
+            width=120,
+            fg_color="#d32f2f",
+            hover_color="#b71c1c"
         )
         self.delete_employee_btn.pack(side="left", padx=3)
         
         self.refresh_emp_data_btn = ctk.CTkButton(
             button_frame, 
-            text="Refresh Data", 
+            text="Smart Refresh", 
             command=self.smart_refresh,
-            width=120
+            width=120,
+            fg_color="#003d52",
+            hover_color="#255c7b"
         )
         self.refresh_emp_data_btn.pack(side="left", padx=3)
         
@@ -246,39 +304,29 @@ class ProjectBookingApp:
             button_frame, 
             text="Delete Selected", 
             command=self.delete_selected_rows,
-            width=120
+            width=120,
+            fg_color="#d32f2f",
+            hover_color="#b71c1c"
         )
         self.delete_selected_btn.pack(side="left", padx=3)
         
-        # self.auto_refresh_btn = ctk.CTkButton(
-        #     button_frame, 
-        #     text="Auto-Refresh: ON", 
-        #     command=self.toggle_auto_refresh,
-        #     width=120
-        # )
-        # self.auto_refresh_btn.pack(side="left", padx=3)
-        
-        self.import_btn = ctk.CTkButton(
+        self.clear_filters_btn = ctk.CTkButton(
             button_frame, 
-            text="Import Excel", 
-            command=self.import_excel_data,
-            width=120
+            text="🔄 Clear Filters", 
+            command=self.clear_all_filters,
+            width=120,
+            fg_color="#ef8827",
+            hover_color="#d67620"
         )
-        self.import_btn.pack(side="left", padx=3)
-        
-        self.export_btn = ctk.CTkButton(
-            button_frame, 
-            text="Export Report", 
-            command=self.export_report,
-            width=120
-        )
-        self.export_btn.pack(side="left", padx=3)
+        self.clear_filters_btn.pack(side="left", padx=3)
         
         self.edit_mode_btn = ctk.CTkButton(
             button_frame, 
             text="Edit Mode: Double-Click", 
             command=self.toggle_edit_mode,
-            width=140
+            width=140,
+            fg_color="#003d52",
+            hover_color="#255c7b"
         )
         self.edit_mode_btn.pack(side="left", padx=3)
     
@@ -1070,7 +1118,8 @@ class ProjectBookingApp:
                         }
                         
                         for col in complete_columns:
-                            self.employee_tree.heading(col, text=col)
+                            self.employee_tree.heading(col, text=col, 
+                                                     command=lambda c=col: self.on_column_header_click(c))
                             width = column_widths.get(col, 100)
                             self.employee_tree.column(col, width=width, anchor="center", minwidth=70)
                 
@@ -1865,8 +1914,13 @@ Department: {emp_data[4] or 'N/A'}
             logging.error(f"Excel import error: {e}")
     
     def export_report(self):
-        """Export booking report to Excel"""
+        """Export booking report to Excel with proper formatting like Fabsi app"""
         try:
+            # Check if there's data to export
+            if not hasattr(self, 'employee_tree') or not self.employee_tree.get_children():
+                messagebox.showwarning("Warning", "No data to export")
+                return
+            
             file_path = filedialog.asksaveasfilename(
                 title="Save report as",
                 defaultextension=".xlsx",
@@ -1876,38 +1930,73 @@ Department: {emp_data[4] or 'N/A'}
             if not file_path:
                 return
             
-            # Generate report data
-            conn = sqlite3.connect(self.db_path)
+            # Get data from the current table view
+            all_data = []
+            columns = []
             
-            # Employee data
-            df_employees = pd.read_sql_query("""
-                SELECT * FROM employee
-                ORDER BY last_name, first_name
-            """, conn)
+            # Get column headers
+            if hasattr(self, 'employee_tree'):
+                columns = list(self.employee_tree['columns'])
+                
+                # Get all rows from the tree
+                for item in self.employee_tree.get_children():
+                    values = self.employee_tree.item(item)['values']
+                    all_data.append(values)
             
-            # Booking data
-            df_bookings = pd.read_sql_query("""
-                SELECT pb.*, e.first_name, e.last_name, p.name as project_name,
-                       tu.name as technical_unit_name
-                FROM project_bookings pb
-                LEFT JOIN employee e ON pb.employee_id = e.id
-                LEFT JOIN project p ON pb.project_id = p.id
-                LEFT JOIN technical_unit tu ON pb.technical_unit_id = tu.id
-                ORDER BY pb.created_at DESC
-            """, conn)
+            if not all_data:
+                messagebox.showwarning("Warning", "No data to export")
+                return
             
-            conn.close()
+            # Create DataFrame
+            df = pd.DataFrame(all_data, columns=columns)
             
-            # Create Excel file with multiple sheets
+            # Remove the Select checkbox column from export
+            if 'Select' in df.columns:
+                df = df.drop('Select', axis=1)
+            
+            # Create Excel file with formatting
             with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-                df_employees.to_excel(writer, sheet_name='Employee Data', index=False)
-                df_bookings.to_excel(writer, sheet_name='Booking Data', index=False)
+                df.to_excel(writer, index=False, sheet_name='Project Bookings')
+                ws = writer.sheets['Project Bookings']
+                
+                # Apply formatting similar to Fabsi app
+                from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+                
+                border = Border(left=Side(style='thin'), right=Side(style='thin'),
+                               top=Side(style='thin'), bottom=Side(style='thin'))
+                header_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+                
+                # Format header row
+                for cell in ws[1]:
+                    cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                    cell.fill = header_fill
+                    cell.border = border
+                    cell.font = Font(bold=True)
+                
+                # Format data cells and auto-size columns
+                for col in ws.columns:
+                    max_length = max((len(str(cell.value)) for cell in col if cell.value), default=10)
+                    col_letter = col[0].column_letter
+                    ws.column_dimensions[col_letter].width = min(max_length + 2, 25)
+                    
+                    for cell in col:
+                        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                        cell.border = border
+                
+                # Add auto-filter
+                ws.auto_filter.ref = ws.dimensions
+                ws.row_dimensions[1].height = 48
             
-            messagebox.showinfo("Success", f"Report exported to {file_path}")
+            # Open the file automatically
+            import subprocess
+            subprocess.Popen(['start', '', file_path], shell=True)
+            messagebox.showinfo("Success", f"Report exported to:\n{file_path}")
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to export report: {e}")
             logging.error(f"Export error: {e}")
+            import traceback
+            traceback.print_exc()
     
     def schedule_auto_refresh(self):
         """Schedule automatic refresh of employee data grid"""
@@ -2103,6 +2192,269 @@ Department: {emp_data[4] or 'N/A'}
             logging.error(f"Selected rows deletion error: {e}")
             import traceback
             traceback.print_exc()
+    
+    def on_column_header_click(self, column):
+        """Handle column header click for sorting and filtering"""
+        try:
+            # Right-click for filter, left-click for sort
+            def show_context_menu(event):
+                context_menu = tk.Menu(self.root, tearoff=0)
+                context_menu.add_command(label=f"Sort {column} ↑", 
+                                       command=lambda: self.sort_column(column, True))
+                context_menu.add_command(label=f"Sort {column} ↓", 
+                                       command=lambda: self.sort_column(column, False))
+                context_menu.add_separator()
+                context_menu.add_command(label=f"Filter {column}...", 
+                                       command=lambda: self.show_column_filter(column))
+                context_menu.post(event.x_root, event.y_root)
+            
+            # For now, just do simple sort on click
+            if self.current_sort_column == column:
+                # Toggle sort direction
+                self.current_sort_ascending = not self.current_sort_ascending
+            else:
+                # New column, start with ascending
+                self.current_sort_column = column
+                self.current_sort_ascending = True
+                
+            self.sort_column(column, self.current_sort_ascending)
+            
+        except Exception as e:
+            logging.error(f"Column header click error: {e}")
+    
+    def sort_column(self, column, ascending=True):
+        """Sort the table by column"""
+        try:
+            if not hasattr(self, 'employee_tree') or not self.employee_tree.get_children():
+                return
+            
+            # Get all data from the tree
+            data = []
+            for item in self.employee_tree.get_children():
+                values = self.employee_tree.item(item)['values']
+                data.append(values)
+            
+            # Find column index
+            columns = list(self.employee_tree['columns'])
+            if column not in columns:
+                return
+                
+            col_idx = columns.index(column)
+            
+            # Sort data by the specified column
+            def sort_key(row):
+                value = row[col_idx] if col_idx < len(row) else ""
+                # Try to convert to number if possible
+                try:
+                    return float(str(value).replace(',', '').replace('N/A', '0'))
+                except:
+                    return str(value).lower()
+            
+            data.sort(key=sort_key, reverse=not ascending)
+            
+            # Clear and repopulate the tree
+            for item in self.employee_tree.get_children():
+                self.employee_tree.delete(item)
+                
+            for row_data in data:
+                self.employee_tree.insert("", "end", values=row_data)
+            
+            # Update column header to show sort direction
+            for col in columns:
+                if col == column:
+                    symbol = " ↑" if ascending else " ↓"
+                    self.employee_tree.heading(col, text=col + symbol)
+                else:
+                    self.employee_tree.heading(col, text=col,
+                                             command=lambda c=col: self.on_column_header_click(c))
+            
+        except Exception as e:
+            logging.error(f"Sort column error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def show_column_filter(self, column):
+        """Show filter dialog for a column"""
+        try:
+            if not hasattr(self, 'employee_tree') or not self.employee_tree.get_children():
+                return
+            
+            # Get unique values in the column
+            columns = list(self.employee_tree['columns'])
+            if column not in columns:
+                return
+                
+            col_idx = columns.index(column)
+            values = set()
+            
+            for item in self.employee_tree.get_children():
+                row_values = self.employee_tree.item(item)['values']
+                if col_idx < len(row_values):
+                    value = str(row_values[col_idx])
+                    if value and value != "N/A":
+                        values.add(value)
+            
+            values = sorted(list(values))
+            
+            if not values:
+                messagebox.showinfo("Filter", f"No unique values found in {column}")
+                return
+            
+            # Create filter dialog
+            filter_dialog = ctk.CTkToplevel(self.root)
+            filter_dialog.title(f"Filter {column}")
+            filter_dialog.geometry("300x400")
+            filter_dialog.transient(self.root)
+            filter_dialog.grab_set()
+            
+            # Center the dialog
+            filter_dialog.update_idletasks()
+            x = (filter_dialog.winfo_screenwidth() // 2) - (300 // 2)
+            y = (filter_dialog.winfo_screenheight() // 2) - (400 // 2)
+            filter_dialog.geometry(f"300x400+{x}+{y}")
+            
+            # Content frame
+            content_frame = ctk.CTkFrame(filter_dialog)
+            content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+            
+            # Title
+            ctk.CTkLabel(content_frame, text=f"Filter {column}", 
+                        font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(0, 10))
+            
+            # Select all / none buttons
+            button_frame = ctk.CTkFrame(content_frame)
+            button_frame.pack(fill="x", pady=(0, 10))
+            
+            def select_all():
+                for var in filter_vars:
+                    var.set(True)
+            
+            def select_none():
+                for var in filter_vars:
+                    var.set(False)
+            
+            ctk.CTkButton(button_frame, text="Select All", command=select_all, width=100).pack(side="left", padx=5)
+            ctk.CTkButton(button_frame, text="Select None", command=select_none, width=100).pack(side="left", padx=5)
+            
+            # Scrollable frame for checkboxes
+            scroll_frame = ctk.CTkScrollableFrame(content_frame, height=250)
+            scroll_frame.pack(fill="both", expand=True, pady=(0, 10))
+            
+            # Create checkboxes for each unique value
+            filter_vars = []
+            for value in values:
+                var = tk.BooleanVar(value=True)
+                filter_vars.append(var)
+                checkbox = ctk.CTkCheckBox(scroll_frame, text=str(value), variable=var)
+                checkbox.pack(anchor="w", pady=2)
+            
+            # Apply/Cancel buttons
+            action_frame = ctk.CTkFrame(content_frame)
+            action_frame.pack(fill="x")
+            
+            def apply_filter():
+                selected_values = []
+                for i, var in enumerate(filter_vars):
+                    if var.get():
+                        selected_values.append(values[i])
+                
+                self.apply_column_filter(column, selected_values)
+                filter_dialog.destroy()
+            
+            def cancel_filter():
+                filter_dialog.destroy()
+            
+            ctk.CTkButton(action_frame, text="Apply Filter", command=apply_filter, 
+                         fg_color="#003d52", hover_color="#255c7b").pack(side="left", padx=5)
+            ctk.CTkButton(action_frame, text="Cancel", command=cancel_filter).pack(side="left", padx=5)
+            
+        except Exception as e:
+            logging.error(f"Show column filter error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def apply_column_filter(self, column, selected_values):
+        """Apply filter to show only rows with selected values in the column"""
+        try:
+            if not hasattr(self, 'employee_tree'):
+                return
+            
+            # Store the filter
+            self.active_column_filters[column] = selected_values
+            
+            # Get all data from database and apply all active filters
+            self.load_employee_data_grid()  # Reload from database
+            
+            # Apply all active filters
+            if self.active_column_filters:
+                # Get column indices
+                columns = list(self.employee_tree['columns'])
+                
+                items_to_remove = []
+                for item in self.employee_tree.get_children():
+                    row_values = self.employee_tree.item(item)['values']
+                    remove_item = False
+                    
+                    # Check each active filter
+                    for filter_col, filter_values in self.active_column_filters.items():
+                        if filter_col in columns:
+                            col_idx = columns.index(filter_col)
+                            if col_idx < len(row_values):
+                                row_value = str(row_values[col_idx])
+                                if row_value not in filter_values:
+                                    remove_item = True
+                                    break
+                    
+                    if remove_item:
+                        items_to_remove.append(item)
+                
+                # Remove filtered items
+                for item in items_to_remove:
+                    self.employee_tree.delete(item)
+            
+        except Exception as e:
+            logging.error(f"Apply column filter error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def clear_all_filters(self):
+        """Clear all active filters"""
+        try:
+            self.active_column_filters.clear()
+            self.load_employee_data_grid()  # Reload all data
+            
+            # Reset column headers
+            if hasattr(self, 'employee_tree'):
+                columns = list(self.employee_tree['columns'])
+                for col in columns:
+                    self.employee_tree.heading(col, text=col,
+                                             command=lambda c=col: self.on_column_header_click(c))
+            
+            messagebox.showinfo("Filters Cleared", "All filters have been cleared")
+            
+        except Exception as e:
+            logging.error(f"Clear filters error: {e}")
+    
+    def toggle_edit_mode(self):
+        """Toggle edit mode between single and double click"""
+        try:
+            if self.edit_mode == "double":
+                self.edit_mode = "single"
+                self.edit_mode_btn.configure(text="Edit Mode: Single-Click")
+                # Remove double-click binding and add single-click
+                self.employee_tree.unbind('<Double-1>')
+                self.employee_tree.bind('<Button-1>', self.on_simplified_cell_edit)
+            else:
+                self.edit_mode = "double"
+                self.edit_mode_btn.configure(text="Edit Mode: Double-Click")
+                # Remove single-click binding and add double-click
+                self.employee_tree.unbind('<Button-1>')
+                self.employee_tree.bind('<Double-1>', self.on_simplified_cell_edit)
+                # Re-add checkbox functionality
+                self.employee_tree.bind('<Button-1>', self.toggle_row_selection, add='+')
+                
+        except Exception as e:
+            logging.error(f"Toggle edit mode error: {e}")
     
     def run(self):
         """Run the application"""
