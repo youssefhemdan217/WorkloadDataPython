@@ -279,16 +279,6 @@ class ProjectBookingApp:
         button_frame = ctk.CTkFrame(selection_frame)
         button_frame.pack(fill="x", padx=5, pady=3)
         
-        self.delete_employee_btn = ctk.CTkButton(
-            button_frame, 
-            text="Delete Booking", 
-            command=self.delete_employee_record,
-            width=120,
-            fg_color="#d32f2f",
-            hover_color="#b71c1c"
-        )
-        self.delete_employee_btn.pack(side="left", padx=3)
-        
         self.refresh_emp_data_btn = ctk.CTkButton(
             button_frame, 
             text="Smart Refresh", 
@@ -301,13 +291,33 @@ class ProjectBookingApp:
         
         self.delete_selected_btn = ctk.CTkButton(
             button_frame, 
-            text="Delete Selected", 
+            text="🗑️ Delete Selected", 
             command=self.delete_selected_rows,
-            width=120,
-            fg_color="#d32f2f",
-            hover_color="#b71c1c"
+            width=140,
+            fg_color="#003d52",
+            hover_color="#255c7b"
         )
         self.delete_selected_btn.pack(side="left", padx=3)
+        
+        self.select_all_btn = ctk.CTkButton(
+            button_frame, 
+            text="✅ Select All", 
+            command=self.select_all_rows,
+            width=120,
+            fg_color="#003d52",
+            hover_color="#255c7b"
+        )
+        self.select_all_btn.pack(side="left", padx=3)
+        
+        self.deselect_all_btn = ctk.CTkButton(
+            button_frame, 
+            text="❌ Deselect All", 
+            command=self.deselect_all_rows,
+            width=120,
+            fg_color="#003d52",
+            hover_color="#255c7b"
+        )
+        self.deselect_all_btn.pack(side="left", padx=3)
         
         self.clear_filters_btn = ctk.CTkButton(
             button_frame, 
@@ -340,16 +350,6 @@ class ProjectBookingApp:
             hover_color="#255c7b"
         )
         self.import_btn.pack(side="left", padx=3)
-        
-        self.edit_mode_btn = ctk.CTkButton(
-            button_frame, 
-            text="Edit Mode: Double-Click", 
-            command=self.toggle_edit_mode,
-            width=140,
-            fg_color="#003d52",
-            hover_color="#255c7b"
-        )
-        self.edit_mode_btn.pack(side="left", padx=3)
     
     def setup_employee_data_table_only(self):
         """Setup only the employee data table to maximize space"""
@@ -371,8 +371,8 @@ class ProjectBookingApp:
             text="🔄 Clear All Filters",
             command=self.reset_filters,
             width=140,
-            fg_color="#ef8827",
-            hover_color="#22505f"
+            fg_color="#003d52",
+            hover_color="#255c7b"
         ).pack(side="left", padx=5, pady=5)
         
         ctk.CTkLabel(
@@ -2652,6 +2652,42 @@ Department: {emp_data[4] or 'N/A'}
                         
         except Exception as e:
             logging.error(f"Row selection toggle error: {e}")
+    
+    def select_all_rows(self):
+        """Select all rows in the employee tree"""
+        try:
+            # Clear current selection set
+            self.selected_rows.clear()
+            
+            # Iterate through all items in the tree
+            for item in self.employee_tree.get_children():
+                current_values = list(self.employee_tree.item(item, 'values'))
+                if current_values:
+                    # Set checkbox to selected
+                    current_values[0] = "☑"
+                    self.employee_tree.item(item, values=current_values)
+                    # Add to selected rows set
+                    self.selected_rows.add(item)
+                    
+        except Exception as e:
+            logging.error(f"Select all rows error: {e}")
+    
+    def deselect_all_rows(self):
+        """Deselect all rows in the employee tree"""
+        try:
+            # Iterate through all items in the tree
+            for item in self.employee_tree.get_children():
+                current_values = list(self.employee_tree.item(item, 'values'))
+                if current_values:
+                    # Set checkbox to unselected
+                    current_values[0] = "☐"
+                    self.employee_tree.item(item, values=current_values)
+            
+            # Clear the selected rows set
+            self.selected_rows.clear()
+                    
+        except Exception as e:
+            logging.error(f"Deselect all rows error: {e}")
     
     def delete_selected_rows(self):
         """Delete all selected rows"""
