@@ -50,6 +50,9 @@ class ProjectBookingApp:
         self.projects = []
         self.employees = []
         
+        # Store selected rows for multi-select deletion
+        self.selected_rows = set()
+        
         # Auto-refresh timer (refresh every 30 seconds)
         self.auto_refresh_enabled = True
         self.schedule_auto_refresh()
@@ -234,10 +237,18 @@ class ProjectBookingApp:
         self.refresh_emp_data_btn = ctk.CTkButton(
             button_frame, 
             text="Refresh Data", 
-            command=self.manual_refresh,
+            command=self.smart_refresh,
             width=120
         )
         self.refresh_emp_data_btn.pack(side="left", padx=3)
+        
+        self.delete_selected_btn = ctk.CTkButton(
+            button_frame, 
+            text="Delete Selected", 
+            command=self.delete_selected_rows,
+            width=120
+        )
+        self.delete_selected_btn.pack(side="left", padx=3)
         
         # self.auto_refresh_btn = ctk.CTkButton(
         #     button_frame, 
@@ -295,7 +306,7 @@ class ProjectBookingApp:
         
         # Define simplified columns for unified view
         emp_columns = (
-            "ID", "Employee Name", "Total Bookings", "Est. Hours", "Actual Hours", 
+            "Select", "ID", "Employee Name", "Total Bookings", "Est. Hours", "Actual Hours", 
             "Total Cost", "Projects", "Technical Units", "Status", "Last Booking"
         )
         
@@ -304,7 +315,7 @@ class ProjectBookingApp:
         
         # Configure column headings and widths for simplified view
         column_widths = {
-            "ID": 50, "Employee Name": 200, "Total Bookings": 100, 
+            "Select": 60, "ID": 50, "Employee Name": 200, "Total Bookings": 100, 
             "Est. Hours": 100, "Actual Hours": 100, "Total Cost": 120,
             "Projects": 150, "Technical Units": 150, "Status": 100, 
             "Last Booking": 120
@@ -341,6 +352,9 @@ class ProjectBookingApp:
         
         # Add visual feedback for selected cells
         self.employee_tree.bind('<Button-1>', self.on_cell_select)
+        
+        # Add checkbox selection functionality
+        self.employee_tree.bind('<Button-1>', self.toggle_row_selection, add='+')
         
         # Load employee data initially
         self.load_employee_data_grid()
@@ -1021,9 +1035,9 @@ class ProjectBookingApp:
                 
                 bookings_data = cursor.fetchall()
                 
-                # Define complete columns for all project booking data (without created/updated fields)
+                # Define complete columns for all project booking data (with Select checkbox)
                 complete_columns = (
-                    "ID", "Cost Center", "GHRS ID", "Employee Name", "Dept. Description",
+                    "Select", "ID", "Cost Center", "GHRS ID", "Employee Name", "Dept. Description",
                     "Work Location", "Business Unit", "Tipo", "Tipo Description", "SAP Tipo",
                     "SAABU Rate (EUR)", "SAABU Rate (USD)", "Local Agency Rate (USD)", "Unit Rate (USD)",
                     "Monthly Hours", "Annual Hours", "Workload 2025_Planned", "Workload 2025_Actual",
@@ -1041,9 +1055,9 @@ class ProjectBookingApp:
                     if current_columns != complete_columns:
                         self.employee_tree.configure(columns=complete_columns)
                         
-                        # Set column widths for complete view (without created/updated fields)
+                        # Set column widths for complete view (with Select checkbox)
                         column_widths = {
-                            "ID": 50, "Cost Center": 100, "GHRS ID": 80, "Employee Name": 150,
+                            "Select": 60, "ID": 50, "Cost Center": 100, "GHRS ID": 80, "Employee Name": 150,
                             "Dept. Description": 150, "Work Location": 120, "Business Unit": 120, "Tipo": 80,
                             "Tipo Description": 150, "SAP Tipo": 80, "SAABU Rate (EUR)": 100, "SAABU Rate (USD)": 100,
                             "Local Agency Rate (USD)": 120, "Unit Rate (USD)": 100, "Monthly Hours": 100, "Annual Hours": 100,
@@ -1060,10 +1074,10 @@ class ProjectBookingApp:
                             width = column_widths.get(col, 100)
                             self.employee_tree.column(col, width=width, anchor="center", minwidth=70)
                 
-                # Populate the grid with complete booking data
+                # Populate the grid with complete booking data (including checkbox)
                 for booking_data in bookings_data:
                     # Format the data for display (handle None values)
-                    formatted_data = []
+                    formatted_data = ["☐"]  # Start with unchecked checkbox
                     for i, value in enumerate(booking_data):
                         if value is None:
                             formatted_data.append("N/A")
@@ -1101,7 +1115,7 @@ class ProjectBookingApp:
         if messagebox.askyesno("Confirm", "Are you sure you want to delete this project booking record?"):
             try:
                 item_values = self.employee_tree.item(selected_item[0])['values']
-                booking_id = item_values[0]  # First column is booking ID
+                booking_id = item_values[1]  # ID is now in position 1 due to checkbox
                 
                 conn = sqlite3.connect(self.db_path)
                 cursor = conn.cursor()
@@ -1136,7 +1150,7 @@ class ProjectBookingApp:
                 
             # Get the actual column names from the data query to map to database fields
             complete_columns = (
-                "ID", "Cost Center", "GHRS ID", "Employee Name", "Dept. Description",
+                "Select", "ID", "Cost Center", "GHRS ID", "Employee Name", "Dept. Description",
                 "Work Location", "Business Unit", "Tipo", "Tipo Description", "SAP Tipo",
                 "SAABU Rate (EUR)", "SAABU Rate (USD)", "Local Agency Rate (USD)", "Unit Rate (USD)",
                 "Monthly Hours", "Annual Hours", "Workload 2025_Planned", "Workload 2025_Actual",
@@ -1147,51 +1161,55 @@ class ProjectBookingApp:
                 "Booking Date", "Start Date", "End Date", "Notes"
             )
             
-            # Map display columns to database column names
+            # Map display columns to database column names (adjusted for checkbox)
             db_column_map = {
-                0: None,  # ID - not editable
-                1: "cost_center",
-                2: "ghrs_id", 
-                3: "employee_name",
-                4: "dept_description",
-                5: "work_location",
-                6: "business_unit",
-                7: "tipo",
-                8: "tipo_description", 
-                9: "sap_tipo",
-                10: "saabu_rate_eur",
-                11: "saabu_rate_usd",
-                12: "local_agency_rate_usd",
-                13: "unit_rate_usd",
-                14: "monthly_hours",
-                15: "annual_hours",
-                16: "workload_2025_planned",
-                17: "workload_2025_actual",
-                18: "remark",
-                19: "project_name",
-                20: "item",
-                21: "technical_unit_name",
-                22: "activities_name",
-                23: "booking_hours",
-                24: "booking_cost_forecast",
-                25: "booking_period",
-                26: "booking_hours_accepted",
-                27: "booking_period_accepted", 
-                28: "booking_hours_extra",
-                29: "estimated_hours",
-                30: "actual_hours",
-                31: "hourly_rate",
-                32: "total_cost",
-                33: "booking_status",
-                34: "booking_date",
-                35: "start_date",
-                36: "end_date",
-                37: "notes"
+                0: None,  # Select checkbox - not editable
+                1: None,  # ID - not editable
+                2: "cost_center",
+                3: "ghrs_id", 
+                4: "employee_name",
+                5: "dept_description",
+                6: "work_location",
+                7: "business_unit",
+                8: "tipo",
+                9: "tipo_description", 
+                10: "sap_tipo",
+                11: "saabu_rate_eur",
+                12: "saabu_rate_usd",
+                13: "local_agency_rate_usd",
+                14: "unit_rate_usd",
+                15: "monthly_hours",
+                16: "annual_hours",
+                17: "workload_2025_planned",
+                18: "workload_2025_actual",
+                19: "remark",
+                20: "project_name",
+                21: "item",
+                22: "technical_unit_name",
+                23: "activities_name",
+                24: "booking_hours",
+                25: "booking_cost_forecast",
+                26: "booking_period",
+                27: "booking_hours_accepted",
+                28: "booking_period_accepted", 
+                29: "booking_hours_extra",
+                30: "estimated_hours",
+                31: "actual_hours",
+                32: "hourly_rate",
+                33: "total_cost",
+                34: "booking_status",
+                35: "booking_date",
+                36: "start_date",
+                37: "end_date",
+                38: "notes"
             }
             
             # Check if column is editable
-            if col_idx == 0:  # ID column
-                messagebox.showinfo("Info", "Booking ID cannot be edited")
+            if col_idx in [0, 1]:  # Select checkbox and ID column
+                if col_idx == 0:
+                    messagebox.showinfo("Info", "Use single click to toggle row selection")
+                else:
+                    messagebox.showinfo("Info", "Booking ID cannot be edited")
                 return
                 
             db_column = db_column_map.get(col_idx)
@@ -1214,9 +1232,9 @@ class ProjectBookingApp:
 
     def create_inline_edit_dialog(self, tree_item, col_idx, column_name, current_value, db_column):
         """Create a small dialog for editing cell value like Excel"""
-        # Get the booking ID for database update
+        # Get the booking ID for database update (now in column 1 due to checkbox)
         item_values = self.employee_tree.item(tree_item)['values']
-        booking_id = item_values[0]
+        booking_id = item_values[1]  # ID is now in position 1
         
         # Store current row values for updating the display
         current_row_values = list(item_values)
@@ -1349,10 +1367,10 @@ class ProjectBookingApp:
                 elif db_column in integer_columns and new_value:
                     current_row_values[col_idx] = str(int(new_value))
                 
-                # Find the item by booking_id and update it (safer than using tree_item reference)
+                # Find the item by booking_id and update it (ID is now in position 1)
                 for item in self.employee_tree.get_children():
                     values = self.employee_tree.item(item)['values']
-                    if values and values[0] == booking_id:
+                    if values and len(values) > 1 and values[1] == booking_id:
                         self.employee_tree.item(item, values=current_row_values)
                         break
                 
@@ -1933,6 +1951,158 @@ Department: {emp_data[4] or 'N/A'}
             messagebox.showinfo("Auto-Refresh", "Automatic refresh enabled (every 30 seconds)")
         else:
             messagebox.showinfo("Auto-Refresh", "Automatic refresh disabled")
+    
+    def smart_refresh(self):
+        """Smart refresh that deletes rows with all zero values in specified fields"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Define the fields to check - all must be 0 for deletion
+            fields_to_check = [
+                'monthly_hours', 
+                'annual_hours', 
+                'workload_2025_planned', 
+                'workload_2025_actual',
+                'booking_hours', 
+                'booking_period',  # This might be text, so we'll treat it differently
+                'booking_hours_accepted', 
+                'booking_period_accepted',  # This might be text, so we'll treat it differently
+                'booking_hours_extra'
+            ]
+            
+            # Build the WHERE clause to find rows where all numeric fields are 0 or NULL
+            # For period fields, we check if they are NULL, empty, or contain only '0'
+            numeric_conditions = []
+            for field in fields_to_check:
+                if 'period' in field:
+                    # For period fields, check if NULL, empty, or just '0'
+                    numeric_conditions.append(f"({field} IS NULL OR {field} = '' OR {field} = '0')")
+                else:
+                    # For numeric fields, check if 0 or NULL
+                    numeric_conditions.append(f"({field} IS NULL OR {field} = 0)")
+            
+            where_clause = " AND ".join(numeric_conditions)
+            
+            # Find rows that match the deletion criteria
+            query = f"""
+                SELECT id, employee_name, project_name, technical_unit_name
+                FROM project_bookings 
+                WHERE {where_clause}
+            """
+            
+            cursor.execute(query)
+            rows_to_delete = cursor.fetchall()
+            
+            if rows_to_delete:
+                # Ask for confirmation
+                message = f"Found {len(rows_to_delete)} rows where all specified fields are zero.\n"
+                message += "These rows will be deleted:\n\n"
+                
+                for i, row in enumerate(rows_to_delete[:5]):  # Show first 5 rows
+                    message += f"- ID: {row[0]}, Employee: {row[1]}, Project: {row[2]}\n"
+                
+                if len(rows_to_delete) > 5:
+                    message += f"... and {len(rows_to_delete) - 5} more rows\n"
+                
+                message += "\nDo you want to proceed with deletion?"
+                
+                if messagebox.askyesno("Confirm Deletion", message):
+                    # Delete the identified rows
+                    ids_to_delete = [str(row[0]) for row in rows_to_delete]
+                    cursor.execute(f"DELETE FROM project_bookings WHERE id IN ({','.join(ids_to_delete)})")
+                    
+                    conn.commit()
+                    
+                    # Refresh the data display
+                    self.load_employee_data_grid()
+                    
+                    messagebox.showinfo("Success", f"Deleted {len(rows_to_delete)} rows with all zero values.")
+                else:
+                    messagebox.showinfo("Cancelled", "Deletion cancelled by user.")
+            else:
+                # Just do regular refresh
+                self.load_employee_data_grid()
+                messagebox.showinfo("Refresh Complete", "No rows found with all zero values. Data refreshed.")
+            
+            conn.close()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to perform smart refresh: {e}")
+            logging.error(f"Smart refresh error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def toggle_row_selection(self, event):
+        """Toggle row selection when clicking on the Select column"""
+        try:
+            # Get the clicked item and column
+            region = self.employee_tree.identify_region(event.x, event.y)
+            if region != "cell":
+                return
+                
+            item = self.employee_tree.identify_row(event.y)
+            column = self.employee_tree.identify_column(event.x)
+            
+            # Check if clicked on the Select column (first column)
+            if column == "#1":  # First column is the Select column
+                if item:
+                    current_values = list(self.employee_tree.item(item, 'values'))
+                    if current_values:
+                        # Toggle the selection
+                        if current_values[0] == "☑":
+                            current_values[0] = "☐"
+                            self.selected_rows.discard(item)
+                        else:
+                            current_values[0] = "☑"
+                            self.selected_rows.add(item)
+                        
+                        self.employee_tree.item(item, values=current_values)
+                        
+        except Exception as e:
+            logging.error(f"Row selection toggle error: {e}")
+    
+    def delete_selected_rows(self):
+        """Delete all selected rows"""
+        try:
+            if not self.selected_rows:
+                messagebox.showwarning("Warning", "No rows selected for deletion")
+                return
+            
+            # Get the IDs of selected rows
+            ids_to_delete = []
+            for item in self.selected_rows:
+                values = self.employee_tree.item(item, 'values')
+                if values and len(values) > 1:  # Make sure we have values and ID is in position 1
+                    ids_to_delete.append(values[1])  # ID is in the second column now
+            
+            if not ids_to_delete:
+                messagebox.showwarning("Warning", "No valid rows selected")
+                return
+            
+            message = f"Are you sure you want to delete {len(ids_to_delete)} selected row(s)?"
+            if messagebox.askyesno("Confirm Deletion", message):
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                
+                # Delete the selected rows
+                placeholders = ','.join(['?' for _ in ids_to_delete])
+                cursor.execute(f"DELETE FROM project_bookings WHERE id IN ({placeholders})", ids_to_delete)
+                
+                conn.commit()
+                conn.close()
+                
+                # Clear selection and refresh
+                self.selected_rows.clear()
+                self.load_employee_data_grid()
+                
+                messagebox.showinfo("Success", f"Deleted {len(ids_to_delete)} row(s) successfully")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to delete selected rows: {e}")
+            logging.error(f"Selected rows deletion error: {e}")
+            import traceback
+            traceback.print_exc()
     
     def run(self):
         """Run the application"""
