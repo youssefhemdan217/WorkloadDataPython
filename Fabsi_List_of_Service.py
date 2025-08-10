@@ -1592,9 +1592,11 @@ class ExcelActivityApp:
         # Sort buttons
         ctk.CTkButton(sort_frame, text="Sort A → Z", 
                      command=lambda: self.sort_column(column, ascending=True),
+                     fg_color='#003d52', hover_color='#255c7b',
                      height=30, font=ctk.CTkFont(size=10)).pack(fill='x', pady=2)
         ctk.CTkButton(sort_frame, text="Sort Z → A",
                      command=lambda: self.sort_column(column, ascending=False),
+                     fg_color='#003d52', hover_color='#255c7b',
                      height=30, font=ctk.CTkFont(size=10)).pack(fill='x', pady=2)
         
         # Separator
@@ -1653,11 +1655,11 @@ class ExcelActivityApp:
                      width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
         ctk.CTkButton(btn_frame, text="Clear",
                      command=lambda: self.clear_column_filter(column),
-                     fg_color='#ef8827', hover_color='#22505f',
+                     fg_color='#003d52', hover_color='#255c7b',
                      width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
         ctk.CTkButton(btn_frame, text="Cancel",
                      command=self.filter_popup.destroy,
-                     fg_color='#255c7b', hover_color='#22505f',
+                     fg_color='#003d52', hover_color='#255c7b',
                      width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
         
         # Handle click outside popup

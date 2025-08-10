@@ -53,16 +53,27 @@ class ProjectBookingApp:
         # Store selected rows for multi-select deletion
         self.selected_rows = set()
         
-        # Filter and sort functionality
+        # Filter and sort functionality - like Fabsi app
         self.active_column_filters = {}
         self.filter_vars = {}
         self.current_sort_column = None
         self.current_sort_ascending = True
+        self.filter_popup = None
+        self.filter_window = None
+        self.filter_menus = {}
+        self.current_filter_values = []
+        self.current_column_filter_vars = {}
+        self.search_var = None
+        self.select_all_var = None
         
         # Auto-refresh timer (refresh every 30 seconds)
         self.auto_refresh_enabled = True
         self.schedule_auto_refresh()
         self.current_bookings = []
+        
+        # Main data DataFrame for filtering - like Fabsi app
+        self.df = pd.DataFrame()
+        self.original_df = pd.DataFrame()
         
         self.setup_ui()
         self.load_data()
@@ -156,70 +167,58 @@ class ProjectBookingApp:
         self.setup_employee_data_table_only()
         
     def setup_header(self):
-        """Setup application header with Saipem branding"""
-        # Create header frame with Saipem colors
-        header_frame = ctk.CTkFrame(self.root, height=60, corner_radius=10, fg_color="#003d52")
-        header_frame.pack(fill='x', padx=10, pady=(5, 5))
+        """Setup application header with Saipem and FABSI branding"""
+        # Create header frame with exact Saipem colors from Fabsi app
+        header_frame = ctk.CTkFrame(self.root, height=40, corner_radius=10)
+        header_frame.pack(fill='x', padx=10, pady=(2, 3))
         header_frame.pack_propagate(False)
 
-        # Left logo (Saipem)
-        left_logo_frame = ctk.CTkFrame(header_frame, width=100, height=50, corner_radius=5, fg_color="transparent")
-        left_logo_frame.pack(side='left', padx=10)
+        # Left logo (Saipem) - same size as Fabsi app
+        left_logo_frame = ctk.CTkFrame(header_frame, width=80, height=35, corner_radius=5)
+        left_logo_frame.pack(side='left', padx=5)
         left_logo_frame.pack_propagate(False)
         
         # Load Saipem logo
         saipem_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'saipem_logo.png')
-        saipem_logo_image = self.load_logo_image(saipem_logo_path, 90, 45)
+        saipem_logo_image = self.load_logo_image(saipem_logo_path, 75, 30)
         
         if saipem_logo_image:
             left_logo_label = ctk.CTkLabel(left_logo_frame, image=saipem_logo_image, text="")
         else:
             left_logo_label = ctk.CTkLabel(left_logo_frame, text="SAIPEM", 
-                                         font=ctk.CTkFont(family="Arial", size=12, weight="bold"), 
-                                         text_color="white")
+                                         font=("Arial", 9), text_color="#003d52")
         left_logo_label.pack(expand=True)
 
-        # Title in center
+        # Title in center - same style as Fabsi app
         title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         title_frame.pack(side='left', expand=True)
         title_label = ctk.CTkLabel(
             title_frame, 
             text="Project Booking & Resource Allocation System",
-            font=ctk.CTkFont(family="Arial", size=18, weight="bold"),
-            text_color="white"
+            font=ctk.CTkFont(family="Arial", size=16, weight="bold"),
+            text_color="#003d52"
         )
         title_label.pack(expand=True)
 
-        # Action buttons in header
-        button_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        button_frame.pack(side="right", padx=10)
+        # Right logo (FABSI) - same as Fabsi app
+        right_logo_frame = ctk.CTkFrame(header_frame, width=60, height=35, corner_radius=5)
+        right_logo_frame.pack(side='right', padx=5)
+        right_logo_frame.pack_propagate(False)
         
-        # Saipem themed buttons
-        self.import_btn = ctk.CTkButton(
-            button_frame, 
-            text="📥 Import Excel", 
-            command=self.import_excel_data,
-            width=130,
-            fg_color="#ef8827",
-            hover_color="#d67620",
-            font=ctk.CTkFont(size=12)
-        )
-        self.import_btn.pack(side="top", pady=2)
+        # Load FABSI logo
+        fabsi_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'fabsi_logo.png')
+        fabsi_logo_image = self.load_logo_image(fabsi_logo_path, 55, 30)
         
-        self.export_btn = ctk.CTkButton(
-            button_frame, 
-            text="📊 Export Report", 
-            command=self.export_report,
-            width=130,
-            fg_color="#ef8827",
-            hover_color="#d67620",
-            font=ctk.CTkFont(size=12)
-        )
-        self.export_btn.pack(side="top", pady=2)
+        if fabsi_logo_image:
+            right_logo_label = ctk.CTkLabel(right_logo_frame, image=fabsi_logo_image, text="")
+        else:
+            right_logo_label = ctk.CTkLabel(right_logo_frame, text="FABSI", 
+                                          font=("Arial", 7), text_color="#ef8827")
+        right_logo_label.pack(expand=True)
         
-        # Add separator
-        separator_frame = ctk.CTkFrame(self.root, height=2, fg_color="#ef8827")
-        separator_frame.pack(fill='x', padx=10, pady=(0, 5))
+        # Add separator - same as Fabsi app
+        separator_frame = ctk.CTkFrame(self.root, height=1, fg_color="#22505f")
+        separator_frame.pack(fill='x', padx=10, pady=(0, 3))
     
     def setup_selection_panel(self):
         """Setup the three-level selection panel - FOR ADDING DATA"""
@@ -315,10 +314,32 @@ class ProjectBookingApp:
             text="🔄 Clear Filters", 
             command=self.clear_all_filters,
             width=120,
-            fg_color="#ef8827",
-            hover_color="#d67620"
+            fg_color="#003d52",
+            hover_color="#255c7b"
         )
         self.clear_filters_btn.pack(side="left", padx=3)
+        
+        # Export buttons frame - same as Fabsi app
+        export_frame = ctk.CTkFrame(button_frame, corner_radius=8)
+        export_frame.pack(side='left', padx=10)
+        
+        ctk.CTkLabel(export_frame, text="Export Data:", 
+                    font=ctk.CTkFont(family='Arial', size=11, weight='bold')).pack(side='left', padx=5)
+        
+        ctk.CTkButton(export_frame, text="📊 Excel", 
+                     command=self.export_report,
+                     fg_color="#003d52", hover_color="#255c7b",
+                     width=80).pack(side='left', padx=5, pady=5)
+        
+        self.import_btn = ctk.CTkButton(
+            button_frame, 
+            text="📁 Import Excel", 
+            command=self.import_excel_data,
+            width=120,
+            fg_color="#003d52",
+            hover_color="#255c7b"
+        )
+        self.import_btn.pack(side="left", padx=3)
         
         self.edit_mode_btn = ctk.CTkButton(
             button_frame, 
@@ -339,6 +360,26 @@ class ProjectBookingApp:
             font=ctk.CTkFont(size=16, weight="bold")
         )
         title_label.pack(pady=(3, 2))
+        
+        # Create header frame for filter buttons
+        self.header_frame = ctk.CTkFrame(self.main_frame)
+        self.header_frame.pack(fill="x", padx=2, pady=(0, 2))
+        
+        # Add filter control buttons to header frame
+        ctk.CTkButton(
+            self.header_frame, 
+            text="🔄 Clear All Filters",
+            command=self.reset_filters,
+            width=140,
+            fg_color="#ef8827",
+            hover_color="#22505f"
+        ).pack(side="left", padx=5, pady=5)
+        
+        ctk.CTkLabel(
+            self.header_frame,
+            text="📋 Click column headers with ▼ to filter data (Excel-like filtering)",
+            font=ctk.CTkFont(size=11)
+        ).pack(side="left", padx=10, pady=5)
         
         # Employee data grid with booking information (simplified view)
         self.setup_employee_data_grid_maximized(self.main_frame)
@@ -361,7 +402,7 @@ class ProjectBookingApp:
         # Maximum height for the table - most of the screen
         self.employee_tree = ttk.Treeview(emp_tree_container, columns=emp_columns, show="headings", height=32)
         
-        # Configure column headings and widths for simplified view
+        # Configure column headings and widths for simplified view with Excel-like filters
         column_widths = {
             "Select": 60, "ID": 50, "Employee Name": 200, "Total Bookings": 100, 
             "Est. Hours": 100, "Actual Hours": 100, "Total Cost": 120,
@@ -369,10 +410,20 @@ class ProjectBookingApp:
             "Last Booking": 120
         }
         
+        # Configure headers with Excel-like filter arrows (similar to Fabsi app)
+        from functools import partial
         for col in emp_columns:
-            self.employee_tree.heading(col, text=col)
+            # Add filter arrow only for non-Select and non-ID columns
+            if col not in ["Select", "ID"]:
+                header_text = f"{col} ▼"
+                # Use functools.partial to avoid lambda closure issues
+                self.employee_tree.heading(col, text=header_text, command=partial(self.show_filter_menu, col))
+            else:
+                self.employee_tree.heading(col, text=col)
+            
             width = column_widths.get(col, 100)
-            self.employee_tree.column(col, width=width, anchor="center", minwidth=80)
+            anchor = 'w' if col in ["Employee Name", "Projects", "Technical Units", "Status"] else 'center'
+            self.employee_tree.column(col, width=width, anchor=anchor, minwidth=80)
         
         # Scrollbars for employee data grid - PROPERLY POSITIONED
         emp_v_scrollbar = ttk.Scrollbar(emp_tree_container, orient="vertical", command=self.employee_tree.yview)
@@ -548,6 +599,14 @@ class ProjectBookingApp:
     
     def setup_employee_data_grid(self, parent):
         """Setup treeview for complete employee data with all 29 columns"""
+        # Initialize filter system
+        self.active_column_filters = {}
+        self.filter_menus = {}
+        
+        # Create header frame for filter buttons
+        self.header_frame = ctk.CTkFrame(parent, height=30)
+        self.header_frame.pack(fill="x", padx=5, pady=(2, 0))
+        
         emp_tree_frame = ctk.CTkFrame(parent)
         emp_tree_frame.pack(fill="both", expand=True, padx=5, pady=2)  # Minimal padding, more space
         
@@ -583,9 +642,13 @@ class ProjectBookingApp:
         }
         
         for col in emp_columns:
-            self.employee_tree.heading(col, text=col)
+            self.employee_tree.heading(col, text=col, command=lambda c=col: self.on_column_header_click(c))
             width = column_widths.get(col, 100)
             self.employee_tree.column(col, width=width, anchor="center", minwidth=80)
+        
+        # Initialize filter menus for each column
+        for col in emp_columns:
+            self.filter_menus[col] = None
         
         # Scrollbars for employee data grid
         emp_v_scrollbar = ttk.Scrollbar(emp_tree_container, orient="vertical", command=self.employee_tree.yview)
@@ -597,6 +660,19 @@ class ProjectBookingApp:
         self.employee_tree.pack(side="left", fill="both", expand=True)
         emp_v_scrollbar.pack(side="right", fill="y")
         emp_h_scrollbar.pack(side="bottom", fill="x")
+        
+        # Position filter buttons after the tree is created
+        self.root.after(100, self.position_filter_buttons)
+        
+    def on_column_header_click(self, column):
+        """Handle column header click for sorting and filtering"""
+        try:
+            # Check if this is a filter button click area (right side of header)
+            # For now, just show the filter - you can add more sophisticated click detection
+            self.show_column_filter(column)
+        except Exception as e:
+            logging.error(f"Column header click error: {e}")
+    
         
         # Load employee data initially
         self.load_employee_data_grid()
@@ -1118,28 +1194,66 @@ class ProjectBookingApp:
                         }
                         
                         for col in complete_columns:
-                            self.employee_tree.heading(col, text=col, 
-                                                     command=lambda c=col: self.on_column_header_click(c))
+                            # Set basic column properties first
                             width = column_widths.get(col, 100)
-                            self.employee_tree.column(col, width=width, anchor="center", minwidth=70)
+                            anchor = 'w' if col in ["Employee Name", "Project", "Technical Unit", "Activities", 
+                                                  "Dept. Description", "Work Location", "Business Unit", 
+                                                  "Tipo Description", "Remark", "Notes"] else 'center'
+                            self.employee_tree.column(col, width=width, anchor=anchor, minwidth=70)
+                            
+                            # Set headers (filter arrows will be added later after DataFrame creation)
+                            self.employee_tree.heading(col, text=col)
                 
                 # Populate the grid with complete booking data (including checkbox)
+                formatted_data_list = []  # Store for DataFrame
                 for booking_data in bookings_data:
                     # Format the data for display (handle None values)
                     formatted_data = ["☐"]  # Start with unchecked checkbox
+                    formatted_row = {}  # For DataFrame
+                    
                     for i, value in enumerate(booking_data):
+                        col_name = complete_columns[i + 1]  # +1 because we added Select column
+                        
                         if value is None:
-                            formatted_data.append("N/A")
+                            display_value = "N/A"
+                            formatted_row[col_name] = ""
                         elif i in [10, 11, 12, 13, 16, 17, 23, 24, 26, 28, 29, 30, 31, 32]:  # Decimal/money columns
-                            formatted_data.append(f"{value:.2f}" if value else "0.00")
+                            display_value = f"{value:.2f}" if value else "0.00"
+                            formatted_row[col_name] = float(value) if value else 0.0
                         elif i in [14, 15]:  # Integer hours columns
-                            formatted_data.append(str(int(value)) if value else "0")
+                            display_value = str(int(value)) if value else "0"
+                            formatted_row[col_name] = int(value) if value else 0
                         elif i in [34, 35, 36]:  # Date columns (booking_date, start_date, end_date)
-                            formatted_data.append(str(value) if value else "N/A")
+                            display_value = str(value) if value else "N/A"
+                            formatted_row[col_name] = str(value) if value else ""
                         else:
-                            formatted_data.append(str(value) if value else "N/A")
+                            display_value = str(value) if value else "N/A"
+                            formatted_row[col_name] = str(value) if value else ""
+                            
+                        formatted_data.append(display_value)
+                    
+                    # Add Select column to DataFrame
+                    formatted_row["Select"] = False
+                    formatted_data_list.append(formatted_row)
                     
                     self.employee_tree.insert("", "end", values=formatted_data)
+                
+                # Create DataFrame for filtering
+                if formatted_data_list:
+                    self.df = pd.DataFrame(formatted_data_list)
+                    # Store original data for filter reset
+                    self.original_df = self.df.copy()
+                    
+                    # Update column headers with filter arrows (like Fabsi app)
+                    from functools import partial
+                    for col in complete_columns:
+                        if col not in ["Select", "ID"]:
+                            header_text = f"{col} ▼"
+                            self.employee_tree.heading(col, text=header_text, 
+                                                     command=partial(self.show_filter_menu, col))
+                else:
+                    self.df = pd.DataFrame()
+                    self.original_df = pd.DataFrame()
                 
                 conn.close()
                 
@@ -1181,6 +1295,394 @@ class ProjectBookingApp:
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to delete project booking: {e}")
                 logging.error(f"Project booking deletion error: {e}")
+    
+    def load_employee_data_grid_for_filter(self):
+        """Load employee data grid - same as load_employee_data_grid but for filter system"""
+        self.load_employee_data_grid()
+    
+    def position_filter_buttons(self):
+        """Position filter buttons above their respective columns"""
+        try:
+            if not hasattr(self, 'employee_tree') or not self.filter_menus:
+                return
+            
+            # Clear existing buttons from header frame
+            for widget in self.header_frame.winfo_children():
+                widget.destroy()
+            
+            # Get column positions and create buttons
+            columns = list(self.employee_tree['columns'])
+            
+            for i, col in enumerate(columns):
+                if col in self.filter_menus and col != "Select":
+                    # Calculate position based on column width
+                    col_width = self.employee_tree.column(col, 'width')
+                    x_pos = sum(self.employee_tree.column(columns[j], 'width') for j in range(i))
+                    
+                    # Create filter button
+                    filter_btn = ctk.CTkButton(
+                        self.header_frame,
+                        text="🔽",
+                        width=20,
+                        height=20,
+                        command=lambda c=col: self.show_column_filter(c),
+                        fg_color="#003d52",
+                        hover_color="#255c7b",
+                        font=ctk.CTkFont(size=8)
+                    )
+                    filter_btn.place(x=x_pos + col_width - 25, y=2)
+                    self.filter_menus[col] = filter_btn
+                    
+        except Exception as e:
+            logging.error(f"Position filter buttons error: {e}")
+    
+    def show_column_filter(self, column):
+        """Show Excel-like filter popup for the column - exact copy from Fabsi app"""
+        try:
+            # Close existing popup if any
+            if hasattr(self, 'filter_popup') and self.filter_popup:
+                self.filter_popup.destroy()
+            
+            # Get button widget and position
+            if column not in self.filter_menus:
+                return
+                
+            filter_btn = self.filter_menus[column]
+            x = filter_btn.winfo_rootx()
+            y = filter_btn.winfo_rooty() + filter_btn.winfo_height()
+            
+            # Create popup window
+            self.filter_popup = ctk.CTkToplevel(self.root)
+            self.filter_popup.wm_overrideredirect(True)
+            self.filter_popup.geometry(f"220x380+{x}+{y}")
+            
+            # Main container frame
+            main_frame = ctk.CTkFrame(self.filter_popup, corner_radius=8)
+            main_frame.pack(fill='both', expand=True, padx=3, pady=3)
+            
+            # Store current filter values for search
+            self.current_filter_values = []
+            if column in self.df.columns:
+                self.current_filter_values = sorted(self.df[column].unique().tolist())
+                self.current_filter_values = [str(val) for val in self.current_filter_values if pd.notnull(val)]
+            
+            # Frame for sort options at the top
+            sort_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+            sort_frame.pack(fill='x', pady=(5, 5))
+            
+            # Sort buttons
+            ctk.CTkButton(sort_frame, text="Sort A → Z", 
+                         command=lambda: self.sort_column(column, ascending=True),
+                         height=30, font=ctk.CTkFont(size=10)).pack(fill='x', pady=2)
+            ctk.CTkButton(sort_frame, text="Sort Z → A",
+                         command=lambda: self.sort_column(column, ascending=False),
+                         height=30, font=ctk.CTkFont(size=10)).pack(fill='x', pady=2)
+            
+            # Separator
+            separator_frame = ctk.CTkFrame(main_frame, height=2, fg_color="#22505f")
+            separator_frame.pack(fill='x', pady=5)
+            
+            # Filter options frame
+            filter_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+            filter_frame.pack(fill='both', expand=True, padx=5)
+            
+            # Search entry
+            search_var = tk.StringVar()
+            search_entry = ctk.CTkEntry(filter_frame, textvariable=search_var, 
+                                       placeholder_text="Search...",
+                                       font=ctk.CTkFont(family='Arial', size=10))
+            search_entry.pack(fill='x', pady=(0, 5))
+            
+            # Checkboxes container with scrollbar
+            checkbox_container = ctk.CTkScrollableFrame(filter_frame, height=200)
+            checkbox_container.pack(fill='both', expand=True)
+            
+            # Dictionary to store checkbox variables
+            self.current_column_filter_vars = {}
+            
+            # Add checkboxes
+            for val in self.current_filter_values:
+                var = tk.BooleanVar()
+                var.set(True)  # Start with all selected
+                self.current_column_filter_vars[val] = var
+                cb = ctk.CTkCheckBox(checkbox_container, text=str(val), variable=var,
+                                   font=ctk.CTkFont(family='Arial', size=9))
+                cb.pack(anchor='w', padx=5, pady=2)
+            
+            # Update filter options based on search
+            def update_search(*args):
+                search_text = search_var.get().lower()
+                for widget in checkbox_container.winfo_children():
+                    if hasattr(widget, 'cget'):
+                        try:
+                            if search_text in widget.cget('text').lower():
+                                widget.pack(anchor='w', padx=5, pady=2)
+                            else:
+                                widget.pack_forget()
+                        except:
+                            pass
+            
+            search_var.trace('w', update_search)
+            
+            # Buttons frame at the bottom
+            btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+            btn_frame.pack(side='bottom', fill='x', padx=5, pady=(5, 10))
+            
+            # Pack buttons with equal spacing
+            ctk.CTkButton(btn_frame, text="Apply", 
+                         command=lambda: self.apply_column_filter(column),
+                         fg_color='#003d52', hover_color='#255c7b',
+                         width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
+            ctk.CTkButton(btn_frame, text="Clear",
+                         command=lambda: self.clear_column_filter(column),
+                         fg_color='#ef8827', hover_color='#22505f',
+                         width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
+            ctk.CTkButton(btn_frame, text="Cancel",
+                         command=self.filter_popup.destroy,
+                         fg_color='#255c7b', hover_color='#22505f',
+                         width=60, height=30, font=ctk.CTkFont(size=9)).pack(side='left', expand=True, padx=2)
+            
+            # Set focus to search entry
+            search_entry.focus()
+            
+        except Exception as e:
+            logging.error(f"Show column filter error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def sort_column(self, column, ascending=True):
+        """Sort the data by column - like Fabsi app"""
+        try:
+            # Close filter popup if open
+            if hasattr(self, 'filter_popup') and self.filter_popup:
+                self.filter_popup.destroy()
+            
+            if column not in self.df.columns:
+                return
+            
+            # Sort the DataFrame
+            self.df = self.df.sort_values(by=column, ascending=ascending, na_position='last')
+            self.refresh_display()
+            
+        except Exception as e:
+            logging.error(f"Sort column error: {e}")
+    
+    def apply_column_filter(self, column):
+        """Apply filter to the column based on selected values - like Fabsi app"""
+        try:
+            if not hasattr(self, 'current_column_filter_vars'):
+                return
+            
+            # Get selected values
+            selected_values = []
+            for value, var in self.current_column_filter_vars.items():
+                if var.get():
+                    selected_values.append(value)
+            
+            # Store the filter
+            if selected_values:
+                self.active_column_filters[column] = selected_values
+            else:
+                # If nothing selected, remove filter
+                if column in self.active_column_filters:
+                    del self.active_column_filters[column]
+            
+            # Apply all filters and refresh display
+            self.apply_all_filters()
+            
+            # Close popup
+            if hasattr(self, 'filter_popup') and self.filter_popup:
+                self.filter_popup.destroy()
+                
+        except Exception as e:
+            logging.error(f"Apply column filter error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def clear_column_filter(self, column):
+        """Clear filter for a specific column"""
+        try:
+            if column in self.active_column_filters:
+                del self.active_column_filters[column]
+            
+            self.apply_all_filters()
+            
+            # Close popup
+            if hasattr(self, 'filter_popup') and self.filter_popup:
+                self.filter_popup.destroy()
+                
+        except Exception as e:
+            logging.error(f"Clear column filter error: {e}")
+    
+    def apply_all_filters(self):
+        """Apply all active filters to the DataFrame"""
+        try:
+            # Start with full dataset - reload from database
+            self.load_employee_data_grid_for_filter()
+            
+            # Apply each active filter
+            for column, values in self.active_column_filters.items():
+                if column in self.df.columns:
+                    # Convert values to string for comparison
+                    values_str = [str(v) for v in values]
+                    self.df = self.df[self.df[column].astype(str).isin(values_str)]
+            
+            # Refresh the display
+            self.refresh_display()
+            
+        except Exception as e:
+            logging.error(f"Apply all filters error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def refresh_display(self):
+        """Refresh the tree display with current DataFrame data"""
+        try:
+            # Clear existing items
+            for item in self.employee_tree.get_children():
+                self.employee_tree.delete(item)
+            
+            # Populate with filtered data
+            for _, row in self.df.iterrows():
+                values = []
+                columns = list(self.employee_tree['columns'])
+                
+                for col in columns:
+                    if col in row:
+                        value = row[col]
+                        if col == "Select":
+                            values.append("☐")
+                        else:
+                            values.append(str(value) if pd.notnull(value) else "N/A")
+                    else:
+                        values.append("N/A")
+                
+                self.employee_tree.insert("", "end", values=values)
+                
+        except Exception as e:
+            logging.error(f"Refresh display error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def load_employee_data_grid_for_filter(self):
+        """Reload the full dataset for filtering"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get all project bookings with all columns and foreign key lookups
+            cursor.execute("""
+                SELECT 
+                    pb.id,
+                    pb.cost_center,
+                    COALESCE(e.ghrs_id, pb.ghrs_id, 'N/A') as ghrs_id,
+                    COALESCE(e.name, pb.employee_name, 'N/A') as employee_name,
+                    pb.dept_description,
+                    pb.work_location,
+                    pb.business_unit,
+                    pb.tipo,
+                    pb.tipo_description,
+                    pb.sap_tipo,
+                    pb.saabu_rate_eur,
+                    pb.saabu_rate_usd,
+                    pb.local_agency_rate_usd,
+                    pb.unit_rate_usd,
+                    pb.monthly_hours,
+                    pb.annual_hours,
+                    pb.workload_2025_planned,
+                    pb.workload_2025_actual,
+                    pb.remark,
+                    COALESCE(pb.project_name, p.name, 'N/A') as project,
+                    pb.item,
+                    COALESCE(pb.technical_unit_name, tu.name, 'N/A') as technical_unit,
+                    COALESCE(pb.activities_name, a.name, 'N/A') as activities,
+                    pb.booking_hours,
+                    pb.booking_cost_forecast,
+                    pb.booking_period,
+                    pb.booking_hours_accepted,
+                    pb.booking_period_accepted,
+                    pb.booking_hours_extra,
+                    pb.estimated_hours,
+                    pb.actual_hours,
+                    pb.hourly_rate,
+                    pb.total_cost,
+                    pb.booking_status,
+                    pb.booking_date,
+                    pb.start_date,
+                    pb.end_date,
+                    pb.notes
+                FROM project_bookings pb
+                LEFT JOIN employee e ON pb.employee_id = e.id
+                LEFT JOIN technical_unit tu ON pb.technical_unit_id = tu.id
+                LEFT JOIN project p ON pb.project_id = p.id
+                LEFT JOIN service s ON pb.service_id = s.id
+                LEFT JOIN title t ON s.title_id = t.id
+                LEFT JOIN activities a ON s.activities_id = a.id
+                ORDER BY pb.id
+            """)
+            
+            bookings_data = cursor.fetchall()
+            
+            # Define complete columns for all project booking data (with Select checkbox)
+            complete_columns = (
+                "Select", "ID", "Cost Center", "GHRS ID", "Employee Name", "Dept. Description",
+                "Work Location", "Business Unit", "Tipo", "Tipo Description", "SAP Tipo",
+                "SAABU Rate (EUR)", "SAABU Rate (USD)", "Local Agency Rate (USD)", "Unit Rate (USD)",
+                "Monthly Hours", "Annual Hours", "Workload 2025_Planned", "Workload 2025_Actual",
+                "Remark", "Project", "Item", "Technical Unit", "Activities", "Booking Hours",
+                "Booking Cost (Forecast)", "Booking Period", "Booking hours (Accepted by Project)",
+                "Booking Period (Accepted by Project)", "Booking hours (Extra)",
+                "Est. Hours", "Actual Hours", "Hourly Rate", "Total Cost", "Status",
+                "Booking Date", "Start Date", "End Date", "Notes"
+            )
+            
+            # Create DataFrame for filtering
+            formatted_data_list = []
+            for booking_data in bookings_data:
+                formatted_row = {"Select": False}  # Start with checkbox unchecked
+                
+                for i, value in enumerate(booking_data):
+                    col_name = complete_columns[i + 1]  # +1 because we added Select column
+                    
+                    if value is None:
+                        formatted_row[col_name] = ""
+                    elif i in [10, 11, 12, 13, 16, 17, 23, 24, 26, 28, 29, 30, 31, 32]:  # Decimal/money columns
+                        formatted_row[col_name] = float(value) if value else 0.0
+                    elif i in [14, 15]:  # Integer hours columns
+                        formatted_row[col_name] = int(value) if value else 0
+                    elif i in [34, 35, 36]:  # Date columns
+                        formatted_row[col_name] = str(value) if value else ""
+                    else:
+                        formatted_row[col_name] = str(value) if value else ""
+                        
+                formatted_data_list.append(formatted_row)
+            
+            self.df = pd.DataFrame(formatted_data_list)
+            conn.close()
+            
+        except Exception as e:
+            logging.error(f"Load data for filter error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def reset_filters(self):
+        """Reset all filters - like Fabsi app"""
+        try:
+            self.active_column_filters.clear()
+            self.apply_all_filters()
+            
+        except Exception as e:
+            logging.error(f"Reset filters error: {e}")
+    
+    def clear_all_filters(self):
+        """Clear all active filters"""
+        try:
+            self.active_column_filters.clear()
+            self.apply_all_filters()
+            messagebox.showinfo("Filters Cleared", "All filters have been cleared")
+            
+        except Exception as e:
+            logging.error(f"Clear filters error: {e}")
     
     def on_simplified_cell_edit(self, event):
         """Excel-like cell editing: Click to edit any cell directly"""
@@ -2273,168 +2775,389 @@ Department: {emp_data[4] or 'N/A'}
             import traceback
             traceback.print_exc()
     
-    def show_column_filter(self, column):
-        """Show filter dialog for a column"""
+    def show_filter_menu(self, column):
+        """Show Excel-like filter menu for the selected column (based on Fabsi app)"""
+        print(f"Opening filter for column: {column}")  # Debug
+        
+        # Store current filter column for use in other functions
+        self.current_filter_column = column
+        
+        # Close any existing filter window
+        if hasattr(self, 'filter_window') and self.filter_window:
+            try:
+                self.filter_window.destroy()
+            except:
+                pass
+        
+        # Create new filter window with proper layout
+        self.filter_window = tk.Toplevel(self.root)
+        self.filter_window.title(f"Filter - {column}")
+        self.filter_window.geometry("350x550")  # Increased size for better visibility
+        self.filter_window.resizable(False, False)
+        self.filter_window.transient(self.root)
+        self.filter_window.grab_set()
+        
+        # Position the window near the mouse cursor
         try:
-            if not hasattr(self, 'employee_tree') or not self.employee_tree.get_children():
-                return
+            x = self.root.winfo_pointerx() - 175
+            y = self.root.winfo_pointery() - 50
+            self.filter_window.geometry(f"350x550+{x}+{y}")
+        except:
+            pass
+        
+        # Main container with fixed structure
+        main_frame = tk.Frame(self.filter_window, bg='white')
+        main_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        # Title
+        title_label = tk.Label(main_frame, text=f"Filter: {column}", 
+                              font=('Arial', 12, 'bold'), bg='white')
+        title_label.pack(pady=(0, 10))
+        
+        # Sort section
+        sort_frame = tk.LabelFrame(main_frame, text="Sort Options", bg='white', font=('Arial', 9, 'bold'))
+        sort_frame.pack(fill='x', pady=(0, 10))
+        
+        # Sort buttons
+        sort_btn_frame = tk.Frame(sort_frame, bg='white')
+        sort_btn_frame.pack(fill='x', padx=5, pady=5)
+        
+        tk.Button(sort_btn_frame, text="↑ Sort A to Z", 
+                 command=lambda: self.apply_sort(column, True),
+                 bg='#003d52', fg='white', relief='flat', font=('Arial', 9),
+                 width=15, pady=5).pack(side='left', padx=(0, 5))
+        
+        tk.Button(sort_btn_frame, text="↓ Sort Z to A",
+                 command=lambda: self.apply_sort(column, False), 
+                 bg='#003d52', fg='white', relief='flat', font=('Arial', 9),
+                 width=15, pady=5).pack(side='left')
+        
+        # Filter section with FIXED height to ensure buttons show
+        filter_frame = tk.LabelFrame(main_frame, text="Filter Values", bg='white', 
+                                   font=('Arial', 9, 'bold'), height=320)
+        filter_frame.pack(fill='x', pady=(0, 10))
+        filter_frame.pack_propagate(False)  # Prevent expansion
+        
+        # Search box
+        search_frame = tk.Frame(filter_frame, bg='white')
+        search_frame.pack(fill='x', padx=5, pady=5)
+        
+        tk.Label(search_frame, text="Search:", bg='white', font=('Arial', 9)).pack(anchor='w')
+        
+        self.search_var = tk.StringVar()
+        search_entry = tk.Entry(search_frame, textvariable=self.search_var, font=('Arial', 9))
+        search_entry.pack(fill='x', pady=2)
+        
+        # Select All checkbox
+        select_all_frame = tk.Frame(filter_frame, bg='white')
+        select_all_frame.pack(fill='x', padx=5, pady=2)
+        
+        self.select_all_var = tk.BooleanVar(value=True)
+        select_all_cb = tk.Checkbutton(select_all_frame, text="Select All", 
+                                      variable=self.select_all_var,
+                                      command=self.toggle_select_all,
+                                      bg='white', font=('Arial', 9))
+        select_all_cb.pack(anchor='w')
+        
+        # Separator line
+        tk.Frame(filter_frame, height=1, bg='gray').pack(fill='x', padx=5, pady=2)
+        
+        # Values frame with checkboxes (Excel-like)
+        values_frame = tk.Frame(filter_frame, bg='white')
+        values_frame.pack(fill='both', expand=True, padx=5, pady=2)
+        
+        # Create scrollable frame for checkboxes
+        canvas = tk.Canvas(values_frame, bg='white', highlightthickness=0)
+        scrollbar = tk.Scrollbar(values_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg='white')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Store checkbox variables
+        self.checkbox_vars = {}
+        
+        # Populate checkboxes from current data
+        self.populate_filter_checkboxes(scrollable_frame)
+        
+        # Bind search functionality
+        self.search_var.trace('w', lambda *args: self.update_filter_search_checkboxes(scrollable_frame))
+        
+        # Bind mousewheel to canvas
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", on_mousewheel)
+        
+        # Action buttons - FIXED position at bottom
+        button_frame = tk.Frame(main_frame, bg='white')
+        button_frame.pack(side='bottom', fill='x', pady=(10, 0))
+        
+        tk.Button(button_frame, text="OK", command=lambda: self.apply_filter(column),
+                 bg='#003d52', fg='white', font=('Arial', 10, 'bold'),
+                 width=8, pady=5).pack(side='left', padx=(0, 5))
+        
+        tk.Button(button_frame, text="Cancel", command=self.filter_window.destroy,
+                 bg='#003d52', fg='white', font=('Arial', 10, 'bold'),
+                 width=8, pady=5).pack(side='left', padx=(0, 5))
+        
+        tk.Button(button_frame, text="Clear Filter", command=lambda: self.clear_filter(column),
+                 bg='#003d52', fg='white', font=('Arial', 10, 'bold'),
+                 width=10, pady=5).pack(side='right')
+    
+    def populate_filter_checkboxes(self, parent_frame):
+        """Populate the filter checkboxes (Excel-like)"""
+        try:
+            # Get unique values from the current data
+            if hasattr(self, 'df') and hasattr(self, 'current_filter_column') and self.current_filter_column in self.df.columns:
+                unique_values = sorted(self.df[self.current_filter_column].dropna().unique().tolist())
+                self.filter_values = [str(val) for val in unique_values]
+            else:
+                # Fallback to getting values from the tree
+                values = set()
+                if hasattr(self, 'current_filter_column') and hasattr(self, 'employee_tree'):
+                    try:
+                        col_index = list(self.employee_tree['columns']).index(self.current_filter_column)
+                        for item in self.employee_tree.get_children():
+                            try:
+                                val = self.employee_tree.item(item)['values'][col_index]
+                                if val and str(val).strip():
+                                    values.add(str(val))
+                            except (IndexError, KeyError):
+                                continue
+                    except ValueError:
+                        pass
+                self.filter_values = sorted(list(values))
             
-            # Get unique values in the column
-            columns = list(self.employee_tree['columns'])
-            if column not in columns:
-                return
-                
-            col_idx = columns.index(column)
-            values = set()
-            
-            for item in self.employee_tree.get_children():
-                row_values = self.employee_tree.item(item)['values']
-                if col_idx < len(row_values):
-                    value = str(row_values[col_idx])
-                    if value and value != "N/A":
-                        values.add(value)
-            
-            values = sorted(list(values))
-            
-            if not values:
-                messagebox.showinfo("Filter", f"No unique values found in {column}")
-                return
-            
-            # Create filter dialog
-            filter_dialog = ctk.CTkToplevel(self.root)
-            filter_dialog.title(f"Filter {column}")
-            filter_dialog.geometry("300x400")
-            filter_dialog.transient(self.root)
-            filter_dialog.grab_set()
-            
-            # Center the dialog
-            filter_dialog.update_idletasks()
-            x = (filter_dialog.winfo_screenwidth() // 2) - (300 // 2)
-            y = (filter_dialog.winfo_screenheight() // 2) - (400 // 2)
-            filter_dialog.geometry(f"300x400+{x}+{y}")
-            
-            # Content frame
-            content_frame = ctk.CTkFrame(filter_dialog)
-            content_frame.pack(fill="both", expand=True, padx=20, pady=20)
-            
-            # Title
-            ctk.CTkLabel(content_frame, text=f"Filter {column}", 
-                        font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(0, 10))
-            
-            # Select all / none buttons
-            button_frame = ctk.CTkFrame(content_frame)
-            button_frame.pack(fill="x", pady=(0, 10))
-            
-            def select_all():
-                for var in filter_vars:
-                    var.set(True)
-            
-            def select_none():
-                for var in filter_vars:
-                    var.set(False)
-            
-            ctk.CTkButton(button_frame, text="Select All", command=select_all, width=100).pack(side="left", padx=5)
-            ctk.CTkButton(button_frame, text="Select None", command=select_none, width=100).pack(side="left", padx=5)
-            
-            # Scrollable frame for checkboxes
-            scroll_frame = ctk.CTkScrollableFrame(content_frame, height=250)
-            scroll_frame.pack(fill="both", expand=True, pady=(0, 10))
+            # Clear existing checkboxes
+            for widget in parent_frame.winfo_children():
+                widget.destroy()
+            self.checkbox_vars.clear()
             
             # Create checkboxes for each unique value
-            filter_vars = []
-            for value in values:
-                var = tk.BooleanVar(value=True)
-                filter_vars.append(var)
-                checkbox = ctk.CTkCheckBox(scroll_frame, text=str(value), variable=var)
-                checkbox.pack(anchor="w", pady=2)
-            
-            # Apply/Cancel buttons
-            action_frame = ctk.CTkFrame(content_frame)
-            action_frame.pack(fill="x")
-            
-            def apply_filter():
-                selected_values = []
-                for i, var in enumerate(filter_vars):
-                    if var.get():
-                        selected_values.append(values[i])
+            for value in self.filter_values:
+                var = tk.BooleanVar(value=True)  # All selected by default
+                self.checkbox_vars[value] = var
                 
-                self.apply_column_filter(column, selected_values)
-                filter_dialog.destroy()
-            
-            def cancel_filter():
-                filter_dialog.destroy()
-            
-            ctk.CTkButton(action_frame, text="Apply Filter", command=apply_filter, 
-                         fg_color="#003d52", hover_color="#255c7b").pack(side="left", padx=5)
-            ctk.CTkButton(action_frame, text="Cancel", command=cancel_filter).pack(side="left", padx=5)
+                checkbox = tk.Checkbutton(
+                    parent_frame, 
+                    text=str(value), 
+                    variable=var,
+                    bg='white',
+                    font=('Arial', 9),
+                    anchor='w',
+                    justify='left'
+                )
+                checkbox.pack(anchor='w', padx=5, pady=1, fill='x')
             
         except Exception as e:
-            logging.error(f"Show column filter error: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"Error populating filter checkboxes: {e}")
+            self.filter_values = []
     
-    def apply_column_filter(self, column, selected_values):
-        """Apply filter to show only rows with selected values in the column"""
+    def update_filter_search_checkboxes(self, parent_frame):
+        """Update filter checkboxes based on search text"""
         try:
-            if not hasattr(self, 'employee_tree'):
+            search_text = self.search_var.get().lower()
+            
+            # Clear existing checkboxes
+            for widget in parent_frame.winfo_children():
+                widget.destroy()
+            
+            # Filter values based on search
+            filtered_values = [val for val in self.filter_values 
+                             if search_text in str(val).lower()]
+            
+            # Recreate checkboxes for filtered values
+            for value in filtered_values:
+                if value in self.checkbox_vars:
+                    var = self.checkbox_vars[value]
+                else:
+                    var = tk.BooleanVar(value=True)
+                    self.checkbox_vars[value] = var
+                
+                checkbox = tk.Checkbutton(
+                    parent_frame, 
+                    text=str(value), 
+                    variable=var,
+                    bg='white',
+                    font=('Arial', 9),
+                    anchor='w',
+                    justify='left'
+                )
+                checkbox.pack(anchor='w', padx=5, pady=1, fill='x')
+                
+        except Exception as e:
+            print(f"Error updating filter search checkboxes: {e}")
+    
+    def toggle_select_all(self):
+        """Toggle select all checkbox for filter checkboxes"""
+        try:
+            select_all_state = self.select_all_var.get()
+            
+            # Update all checkbox variables
+            for value, var in self.checkbox_vars.items():
+                var.set(select_all_state)
+                
+        except Exception as e:
+            print(f"Error toggling select all: {e}")
+    
+    def apply_sort(self, column, ascending=True):
+        """Apply sorting to the column"""
+        try:
+            if hasattr(self, 'df') and column in self.df.columns:
+                self.df = self.df.sort_values(by=column, ascending=ascending, na_position='last')
+                self.render_employee_table()
+            else:
+                # Fallback sorting using treeview
+                self.sort_employee_data_column(column, ascending)
+            
+            # Close filter window
+            if hasattr(self, 'filter_window') and self.filter_window:
+                self.filter_window.destroy()
+                
+        except Exception as e:
+            print(f"Error applying sort: {e}")
+    
+    def apply_filter(self, column):
+        """Apply filter based on selected checkbox values"""
+        try:
+            # Get selected values from checkboxes
+            selected_values = [value for value, var in self.checkbox_vars.items() if var.get()]
+            
+            if not selected_values:
+                # If nothing selected, show all
+                self.clear_filter(column)
                 return
             
-            # Store the filter
+            # Apply filter to DataFrame if available
+            if hasattr(self, 'df') and column in self.df.columns:
+                self.df = self.df[self.df[column].astype(str).isin(selected_values)]
+                self.render_employee_table()
+            else:
+                # Fallback: filter the treeview directly
+                self.filter_treeview_by_column(column, selected_values)
+            
+            # Store active filter
             self.active_column_filters[column] = selected_values
             
-            # Get all data from database and apply all active filters
-            self.load_employee_data_grid()  # Reload from database
-            
-            # Apply all active filters
-            if self.active_column_filters:
-                # Get column indices
-                columns = list(self.employee_tree['columns'])
+            # Close filter window
+            if hasattr(self, 'filter_window') and self.filter_window:
+                self.filter_window.destroy()
                 
-                items_to_remove = []
-                for item in self.employee_tree.get_children():
-                    row_values = self.employee_tree.item(item)['values']
-                    remove_item = False
-                    
-                    # Check each active filter
-                    for filter_col, filter_values in self.active_column_filters.items():
-                        if filter_col in columns:
-                            col_idx = columns.index(filter_col)
-                            if col_idx < len(row_values):
-                                row_value = str(row_values[col_idx])
-                                if row_value not in filter_values:
-                                    remove_item = True
-                                    break
-                    
-                    if remove_item:
-                        items_to_remove.append(item)
-                
-                # Remove filtered items
-                for item in items_to_remove:
-                    self.employee_tree.delete(item)
-            
         except Exception as e:
-            logging.error(f"Apply column filter error: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"Error applying filter: {e}")
     
-    def clear_all_filters(self):
-        """Clear all active filters"""
+    def clear_filter(self, column):
+        """Clear filter for the specified column"""
         try:
-            self.active_column_filters.clear()
-            self.load_employee_data_grid()  # Reload all data
+            # Remove from active filters
+            if column in self.active_column_filters:
+                del self.active_column_filters[column]
             
-            # Reset column headers
-            if hasattr(self, 'employee_tree'):
-                columns = list(self.employee_tree['columns'])
-                for col in columns:
-                    self.employee_tree.heading(col, text=col,
-                                             command=lambda c=col: self.on_column_header_click(c))
+            # Reset data to original
+            if hasattr(self, 'original_df') and not self.original_df.empty:
+                self.df = self.original_df.copy()
+                # Re-apply any remaining filters
+                for col, values in self.active_column_filters.items():
+                    if col in self.df.columns:
+                        self.df = self.df[self.df[col].astype(str).isin(values)]
+                self.render_employee_table()
+            else:
+                # Fallback: reload all data
+                self.load_employee_data_grid()
             
-            messagebox.showinfo("Filters Cleared", "All filters have been cleared")
+            # Close filter window
+            if hasattr(self, 'filter_window') and self.filter_window:
+                self.filter_window.destroy()
+                
+        except Exception as e:
+            print(f"Error clearing filter: {e}")
+    
+    def filter_treeview_by_column(self, column, selected_values):
+        """Filter treeview directly by hiding/showing items"""
+        try:
+            col_index = list(self.employee_tree['columns']).index(column)
+            
+            # Get all items
+            all_items = self.employee_tree.get_children()
+            
+            # Hide items that don't match filter
+            for item in all_items:
+                try:
+                    item_values = self.employee_tree.item(item)['values']
+                    if len(item_values) > col_index:
+                        cell_value = str(item_values[col_index])
+                        if cell_value not in selected_values:
+                            self.employee_tree.delete(item)
+                except (IndexError, KeyError):
+                    continue
+                    
+        except Exception as e:
+            print(f"Error filtering treeview: {e}")
+    
+    def render_employee_table(self):
+        """Render the employee table with current data"""
+        try:
+            # Clear existing items
+            for item in self.employee_tree.get_children():
+                self.employee_tree.delete(item)
+            
+            # Populate with filtered data
+            if hasattr(self, 'df') and not self.df.empty:
+                for i, row in self.df.iterrows():
+                    # Prepare row values
+                    row_values = []
+                    for col in self.employee_tree['columns']:
+                        if col in self.df.columns:
+                            value = row[col]
+                            # Handle special formatting
+                            if col == 'Select':
+                                value = '☑' if i in getattr(self, 'selected_rows', set()) else '☐'
+                            elif pd.isna(value):
+                                value = ""
+                            else:
+                                value = str(value)
+                            row_values.append(value)
+                        else:
+                            row_values.append("")
+                    
+                    self.employee_tree.insert('', 'end', iid=str(i), values=row_values)
             
         except Exception as e:
-            logging.error(f"Clear filters error: {e}")
+            print(f"Error rendering employee table: {e}")
     
+    def reset_filters(self):
+        """Reset all filters and show original data"""
+        try:
+            from functools import partial
+            
+            # Clear all active filters
+            self.active_column_filters.clear()
+            
+            # Reset to original data
+            if hasattr(self, 'original_df') and not self.original_df.empty:
+                self.df = self.original_df.copy()
+                self.render_employee_table()
+            else:
+                self.load_employee_data_grid()
+            
+            # Update column headers to remove filter indicators
+            for col in self.employee_tree['columns']:
+                if col not in ["Select", "ID"]:
+                    header_text = f"{col} ▼"
+                    self.employee_tree.heading(col, text=header_text, 
+                                             command=partial(self.show_filter_menu, col))
+                    
+        except Exception as e:
+            print(f"Error resetting filters: {e}")
+
     def toggle_edit_mode(self):
         """Toggle edit mode between single and double click"""
         try:
