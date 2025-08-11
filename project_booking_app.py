@@ -2698,32 +2698,79 @@ Department: {emp_data[4] or 'N/A'}
             
             # Get the IDs of selected rows
             ids_to_delete = []
+            invalid_items = []
+            
             for item in self.selected_rows:
                 values = self.employee_tree.item(item, 'values')
                 if values and len(values) > 1:  # Make sure we have values and ID is in position 1
-                    ids_to_delete.append(values[1])  # ID is in the second column now
+                    item_id = values[1]  # ID is in the second column now
+                    if item_id and str(item_id).strip():  # Check if ID is not empty
+                        ids_to_delete.append(item_id)
+                    else:
+                        invalid_items.append(item)
+                else:
+                    invalid_items.append(item)
             
             if not ids_to_delete:
-                messagebox.showwarning("Warning", "No valid rows selected")
+                messagebox.showwarning("Warning", "No valid rows selected for deletion")
                 return
             
-            message = f"Are you sure you want to delete {len(ids_to_delete)} selected row(s)?"
-            if messagebox.askyesno("Confirm Deletion", message):
-                conn = sqlite3.connect(self.db_path)
-                cursor = conn.cursor()
+            # Check which IDs actually exist in the database
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Verify IDs exist in database
+            existing_ids = []
+            missing_ids = []
+            
+            for item_id in ids_to_delete:
+                cursor.execute("SELECT id FROM project_bookings WHERE id = ?", (item_id,))
+                if cursor.fetchone():
+                    existing_ids.append(item_id)
+                else:
+                    missing_ids.append(item_id)
+            
+            if missing_ids:
+                missing_str = ", ".join(missing_ids)
+                logging.warning(f"Attempted to delete non-existent IDs: {missing_str}")
                 
-                # Delete the selected rows
-                placeholders = ','.join(['?' for _ in ids_to_delete])
-                cursor.execute(f"DELETE FROM project_bookings WHERE id IN ({placeholders})", ids_to_delete)
-                
-                conn.commit()
+                if not existing_ids:
+                    conn.close()
+                    messagebox.showerror("Error", f"None of the selected items exist in the database. Missing IDs: {missing_str}")
+                    # Refresh the data to sync with database
+                    self.selected_rows.clear()
+                    self.load_employee_data_grid()
+                    return
+                else:
+                    # Some exist, some don't - ask user what to do
+                    message = f"Some selected items don't exist in the database:\nMissing: {missing_str}\n\nDo you want to delete the {len(existing_ids)} existing items?"
+                    if not messagebox.askyesno("Partial Deletion", message):
+                        conn.close()
+                        return
+            
+            if existing_ids:
+                message = f"Are you sure you want to delete {len(existing_ids)} row(s)?"
+                if messagebox.askyesno("Confirm Deletion", message):
+                    # Delete only the existing IDs
+                    placeholders = ','.join(['?' for _ in existing_ids])
+                    cursor.execute(f"DELETE FROM project_bookings WHERE id IN ({placeholders})", existing_ids)
+                    deleted_count = cursor.rowcount
+                    
+                    conn.commit()
+                    conn.close()
+                    
+                    # Clear selection and refresh
+                    self.selected_rows.clear()
+                    self.load_employee_data_grid()
+                    
+                    if missing_ids:
+                        messagebox.showinfo("Partial Success", f"Deleted {deleted_count} row(s) successfully.\n{len(missing_ids)} items were not found in the database.")
+                    else:
+                        messagebox.showinfo("Success", f"Deleted {deleted_count} row(s) successfully")
+                else:
+                    conn.close()
+            else:
                 conn.close()
-                
-                # Clear selection and refresh
-                self.selected_rows.clear()
-                self.load_employee_data_grid()
-                
-                messagebox.showinfo("Success", f"Deleted {len(ids_to_delete)} row(s) successfully")
                 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to delete selected rows: {e}")
