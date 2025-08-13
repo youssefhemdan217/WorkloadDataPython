@@ -103,7 +103,6 @@ class ProjectBookingApp:
                         technical_unit_id INTEGER,
                         project_id INTEGER,
                         service_id INTEGER,
-                        estimated_hours DECIMAL(10,2),
                         actual_hours DECIMAL(10,2),
                         hourly_rate DECIMAL(10,2),
                         total_cost DECIMAL(10,2),
@@ -111,7 +110,6 @@ class ProjectBookingApp:
                         booking_date DATE,
                         start_date DATE,
                         end_date DATE,
-                        notes TEXT,
                         created_by VARCHAR(100),
                         approved_by VARCHAR(100),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -816,7 +814,7 @@ class ProjectBookingApp:
                 # Filter service table by the three dropdown selections
                 cursor.execute("""
                     SELECT id, estimated_internal_hours, estimated_external_hours, 
-                           start_date, due_date, notes, activities_id, title_id
+                           start_date, due_date, activities_id, title_id
                     FROM service 
                     WHERE technical_unit_id = ? AND project_id = ? AND employee_id = ?
                 """, (tech_unit_id, project_id, employee_id))
@@ -921,9 +919,8 @@ class ProjectBookingApp:
                             # Insert comprehensive booking record with all 47 columns (excluding auto-increment id)
                             cursor.execute("""
                                 INSERT INTO project_bookings 
-                                (employee_id, technical_unit_id, project_id, service_id,
-                                 estimated_hours, actual_hours, hourly_rate, total_cost, 
-                                 booking_status, booking_date, start_date, end_date, notes,
+                                (employee_id, technical_unit_id, project_id, service_id, actual_hours, hourly_rate, total_cost, 
+                                 booking_status, booking_date, start_date, end_date,
                                  created_by, approved_by, created_at, updated_at,
                                  cost_center, ghrs_id, last_name, first_name, dept_description,
                                  work_location, business_unit, tipo, tipo_description, sap_tipo,
@@ -1035,11 +1032,10 @@ class ProjectBookingApp:
             cursor.execute("""
                 SELECT pb.id, p.name as project_name, 
                        COALESCE(a.name, 'Unknown Activity') as activity_name,
-                       pb.estimated_hours, pb.actual_hours,
+                       pb.actual_hours,
                        pb.hourly_rate, pb.total_cost, pb.booking_status, 
                        COALESCE(pb.start_date, pb.booking_date) as period,
-                       tu.name as technical_unit_name,
-                       pb.notes
+                       tu.name as technical_unit_name
                 FROM project_bookings pb
                 LEFT JOIN project p ON pb.project_id = p.id
                 LEFT JOIN technical_unit tu ON pb.technical_unit_id = tu.id
@@ -1060,25 +1056,23 @@ class ProjectBookingApp:
                     booking_id = booking[0]
                     project_name = booking[1] or "Unknown Project"
                     activity_name = booking[2] or "Unknown Activity"
-                    est_hours = booking[3] or 0
-                    actual_hours = booking[4] or 0
-                    rate = booking[5] or 0
-                    cost = booking[6] or 0
-                    status = booking[7] or "Pending"
-                    period = booking[8] or "N/A"
-                    technical_unit = booking[9] or "N/A"
-                    notes = booking[10] or ""
+                    actual_hours = booking[3] or 0
+                    rate = booking[4] or 0
+                    cost = booking[5] or 0
+                    status = booking[6] or "Pending"
+                    period = booking[7] or "N/A"
+                    technical_unit = booking[8] or "N/A"
                     
                     # Format display values
                     display_service = f"{project_name} ({technical_unit})"
                     display_period = str(period)[:10] if period else "N/A"  # Show date only
                     
                     self.service_tree.insert("", "end", values=(
-                        display_service, activity_name, est_hours, actual_hours, 
+                        display_service, activity_name, actual_hours, 
                         rate, cost, status, display_period
                     ), tags=(str(booking_id),))  # Store booking ID in tags for future reference
                     
-                    total_hours += float(est_hours) if est_hours else 0
+                    total_hours += float(actual_hours) if actual_hours else 0
                     total_cost += float(cost) if cost else 0
             
             # Update summary if it exists
@@ -1138,15 +1132,13 @@ class ProjectBookingApp:
                         pb.booking_hours_accepted,
                         pb.booking_period_accepted,
                         pb.booking_hours_extra,
-                        pb.estimated_hours,
                         pb.actual_hours,
                         pb.hourly_rate,
                         pb.total_cost,
                         pb.booking_status,
                         pb.booking_date,
                         pb.start_date,
-                        pb.end_date,
-                        pb.notes
+                        pb.end_date 
                     FROM project_bookings pb
                     LEFT JOIN employee e ON pb.employee_id = e.id
                     LEFT JOIN technical_unit tu ON pb.technical_unit_id = tu.id
@@ -1168,8 +1160,8 @@ class ProjectBookingApp:
                     "Remark", "Project", "Item", "Technical Unit", "Activities", "Booking Hours",
                     "Booking Cost (Forecast)", "Booking Period", "Booking hours (Accepted by Project)",
                     "Booking Period (Accepted by Project)", "Booking hours (Extra)",
-                    "Est. Hours", "Actual Hours", "Hourly Rate", "Total Cost", "Status",
-                    "Booking Date", "Start Date", "End Date", "Notes"
+                    "Actual Hours", "Hourly Rate", "Total Cost", "Status",
+                    "Booking Date", "Start Date", "End Date"
                 )
                 
                 # Update treeview columns if needed
@@ -1189,8 +1181,8 @@ class ProjectBookingApp:
                             "Item": 120, "Technical Unit": 120, "Activities": 150, "Booking Hours": 100,
                             "Booking Cost (Forecast)": 120, "Booking Period": 120, "Booking hours (Accepted by Project)": 150,
                             "Booking Period (Accepted by Project)": 150, "Booking hours (Extra)": 120,
-                            "Est. Hours": 80, "Actual Hours": 80, "Hourly Rate": 80, "Total Cost": 100, "Status": 80,
-                            "Booking Date": 100, "Start Date": 100, "End Date": 100, "Notes": 150
+                            "Actual Hours": 80, "Hourly Rate": 80, "Total Cost": 100, "Status": 80,
+                            "Booking Date": 100, "Start Date": 100, "End Date": 100
                         }
                         
                         for col in complete_columns:
@@ -1198,7 +1190,7 @@ class ProjectBookingApp:
                             width = column_widths.get(col, 100)
                             anchor = 'w' if col in ["Employee Name", "Project", "Technical Unit", "Activities", 
                                                   "Dept. Description", "Work Location", "Business Unit", 
-                                                  "Tipo Description", "Remark", "Notes"] else 'center'
+                                                  "Tipo Description", "Remark"] else 'center'
                             self.employee_tree.column(col, width=width, anchor=anchor, minwidth=70)
                             
                             # Set headers (filter arrows will be added later after DataFrame creation)
@@ -1217,13 +1209,21 @@ class ProjectBookingApp:
                         if value is None:
                             display_value = "N/A"
                             formatted_row[col_name] = ""
-                        elif i in [10, 11, 12, 13, 16, 17, 23, 24, 26, 28, 29, 30, 31, 32]:  # Decimal/money columns
-                            display_value = f"{value:.2f}" if value else "0.00"
-                            formatted_row[col_name] = float(value) if value else 0.0
+                        elif i in [10, 11, 12, 13, 16, 17, 23, 24, 25, 27, 28, 29, 30, 31]:  # Decimal/money columns (rates, hours, costs)
+                            try:
+                                display_value = f"{float(value):.2f}" if value else "0.00"
+                                formatted_row[col_name] = float(value) if value else 0.0
+                            except (ValueError, TypeError):
+                                display_value = str(value) if value else "N/A"
+                                formatted_row[col_name] = str(value) if value else ""
                         elif i in [14, 15]:  # Integer hours columns
-                            display_value = str(int(value)) if value else "0"
-                            formatted_row[col_name] = int(value) if value else 0
-                        elif i in [34, 35, 36]:  # Date columns (booking_date, start_date, end_date)
+                            try:
+                                display_value = str(int(value)) if value else "0"
+                                formatted_row[col_name] = int(value) if value else 0
+                            except (ValueError, TypeError):
+                                display_value = str(value) if value else "N/A"
+                                formatted_row[col_name] = str(value) if value else ""
+                        elif i in [32, 33, 34]:  # Date columns (booking_date, start_date, end_date)
                             display_value = str(value) if value else "N/A"
                             formatted_row[col_name] = str(value) if value else ""
                         else:
@@ -1602,16 +1602,13 @@ class ProjectBookingApp:
                     pb.booking_hours_accepted,
                     pb.booking_period_accepted,
                     pb.booking_hours_extra,
-                    pb.estimated_hours,
-                    pb.actual_hours,
+                    pb.pb.actual_hours,
                     pb.hourly_rate,
                     pb.total_cost,
                     pb.booking_status,
                     pb.booking_date,
                     pb.start_date,
-                    pb.end_date,
-                    pb.notes
-                FROM project_bookings pb
+                    pb.end_date FROM project_bookings pb
                 LEFT JOIN employee e ON pb.employee_id = e.id
                 LEFT JOIN technical_unit tu ON pb.technical_unit_id = tu.id
                 LEFT JOIN project p ON pb.project_id = p.id
@@ -1632,8 +1629,8 @@ class ProjectBookingApp:
                 "Remark", "Project", "Item", "Technical Unit", "Activities", "Booking Hours",
                 "Booking Cost (Forecast)", "Booking Period", "Booking hours (Accepted by Project)",
                 "Booking Period (Accepted by Project)", "Booking hours (Extra)",
-                "Est. Hours", "Actual Hours", "Hourly Rate", "Total Cost", "Status",
-                "Booking Date", "Start Date", "End Date", "Notes"
+                "Actual Hours", "Hourly Rate", "Total Cost", "Status",
+                "Booking Date", "Start Date", "End Date"
             )
             
             # Create DataFrame for filtering
@@ -1708,8 +1705,8 @@ class ProjectBookingApp:
                 "Remark", "Project", "Item", "Technical Unit", "Activities", "Booking Hours",
                 "Booking Cost (Forecast)", "Booking Period", "Booking hours (Accepted by Project)",
                 "Booking Period (Accepted by Project)", "Booking hours (Extra)",
-                "Est. Hours", "Actual Hours", "Hourly Rate", "Total Cost", "Status",
-                "Booking Date", "Start Date", "End Date", "Notes"
+                "Actual Hours", "Hourly Rate", "Total Cost", "Status",
+                "Booking Date", "Start Date", "End Date"
             )
             
             # Map display columns to database column names (adjusted for checkbox)
@@ -1744,15 +1741,13 @@ class ProjectBookingApp:
                 27: "booking_hours_accepted",
                 28: "booking_period_accepted", 
                 29: "booking_hours_extra",
-                30: "estimated_hours",
-                31: "actual_hours",
-                32: "hourly_rate",
-                33: "total_cost",
-                34: "booking_status",
-                35: "booking_date",
-                36: "start_date",
-                37: "end_date",
-                38: "notes"
+                30: "actual_hours",
+                31: "hourly_rate",
+                32: "total_cost",
+                33: "booking_status",
+                34: "booking_date",
+                35: "start_date",
+                36: "end_date"
             }
             
             # Check if column is editable
@@ -1815,13 +1810,13 @@ class ProjectBookingApp:
         numeric_columns = ["saabu_rate_eur", "saabu_rate_usd", "local_agency_rate_usd", "unit_rate_usd",
                           "workload_2025_planned", "workload_2025_actual", "booking_hours", 
                           "booking_cost_forecast", "booking_hours_accepted", "booking_hours_extra",
-                          "estimated_hours", "actual_hours", "hourly_rate", "total_cost"]
+                          "actual_hours", "hourly_rate", "total_cost"]
         
         integer_columns = ["monthly_hours", "annual_hours"]
         
         date_columns = ["booking_date", "start_date", "end_date"]
         
-        text_area_columns = ["remark", "notes", "dept_description", "tipo_description"]
+        text_area_columns = ["remark", "dept_description", "tipo_description"]
         
         if db_column in text_area_columns:
             # Text area for longer text
@@ -1898,9 +1893,9 @@ class ProjectBookingApp:
                               (new_value, booking_id))
                 
                 # Special handling for calculated fields
-                if db_column in ["estimated_hours", "hourly_rate"]:
+                if db_column in ["hourly_rate"]:
                     # Recalculate total_cost if hours or rate changed
-                    cursor.execute("SELECT estimated_hours, hourly_rate FROM project_bookings WHERE id = ?", (booking_id,))
+                    cursor.execute("SELECT hourly_rate FROM project_bookings WHERE id = ?", (booking_id,))
                     hours_rate = cursor.fetchone()
                     if hours_rate and hours_rate[0] and hours_rate[1]:
                         total_cost = float(hours_rate[0]) * float(hours_rate[1])
@@ -2267,8 +2262,7 @@ Department: {emp_data[4] or 'N/A'}
                     
                     cursor.execute("""
                         INSERT INTO project_bookings 
-                        (employee_id, technical_unit_id, project_id, service_id,
-                         estimated_hours, hourly_rate, total_cost, start_date, end_date, notes,
+                        (employee_id, technical_unit_id, project_id, service_id, hourly_rate, total_cost, start_date, end_date,
                          booking_status, booking_date, created_at, updated_at,
                          cost_center, ghrs_id, employee_name, dept_description,
                          work_location, business_unit, tipo, tipo_description, sap_tipo,
@@ -2277,12 +2271,12 @@ Department: {emp_data[4] or 'N/A'}
                          remark, project_name, item, technical_unit_name, activities_name,
                          booking_hours, booking_cost_forecast, booking_period,
                          booking_hours_accepted, booking_period_accepted, booking_hours_extra)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', CURRENT_DATE, 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', CURRENT_DATE, 
                                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
-                                ?, NULL, ?, ?, ?, 0.00, 0.00, NULL, 0.00, NULL, 0.00)
+                                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                                ?, ?, ?, ?, ?, 0.00, 0.00, NULL, 0.00, NULL, 0.00)
                     """, (employee_id, tech_unit_id, project_id, service_id, hours, rate, 
-                          total_cost, start_date_entry.get(), end_date_entry.get(), notes_entry.get("1.0", "end"),
+                          total_cost, start_date_entry.get(), end_date_entry.get(),
                           cost_center, ghrs_id, emp_name, dept_description,
                           work_location, business_unit, tipo, tipo_description, sap_tipo,
                           saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
