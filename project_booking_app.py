@@ -1107,7 +1107,8 @@ class ProjectBookingApp:
                         pb.cost_center,
                         COALESCE(e.ghrs_id, pb.ghrs_id, 'N/A') as ghrs_id,
                         COALESCE(e.name, pb.employee_name, 'N/A') as employee_name,
-                        pb.dept_description,
+                        COALESCE(d.name, pb.dept_description, 'N/A') as department_name,
+                        COALESCE(h.name, 'N/A') as hub_name,
                         pb.work_location,
                         pb.business_unit,
                         pb.tipo,
@@ -1126,12 +1127,8 @@ class ProjectBookingApp:
                         pb.item,
                         COALESCE(pb.technical_unit_name, tu.name, 'N/A') as technical_unit,
                         COALESCE(pb.activities_name, a.name, 'N/A') as activities,
-                        pb.booking_hours,
-                        pb.booking_cost_forecast,
-                        pb.booking_period,
-                        pb.booking_hours_accepted,
-                        pb.booking_period_accepted,
-                        pb.booking_hours_extra,
+                        pb.booking_period_from,
+                        pb.booking_period_to,
                         pb.actual_hours,
                         pb.hourly_rate,
                         pb.total_cost,
@@ -1146,6 +1143,8 @@ class ProjectBookingApp:
                     LEFT JOIN service s ON pb.service_id = s.id
                     LEFT JOIN title t ON s.title_id = t.id
                     LEFT JOIN activities a ON s.activities_id = a.id
+                    LEFT JOIN department d ON pb.department_id = d.id
+                    LEFT JOIN hub h ON pb.hub_id = h.id
                     ORDER BY pb.id
                 """)
                 
@@ -1153,13 +1152,12 @@ class ProjectBookingApp:
                 
                 # Define complete columns for all project booking data (with Select checkbox)
                 complete_columns = (
-                    "Select", "ID", "Cost Center", "GHRS ID", "Employee Name", "Dept. Description",
-                    "Work Location", "Business Unit", "Tipo", "Tipo Description", "SAP Tipo",
+                    "Select", "ID", "Cost Center", "GHRS ID", "Employee Name", "Department",
+                    "Hub", "Work Location", "Business Unit", "Tipo", "Tipo Description", "SAP Tipo",
                     "SAABU Rate (EUR)", "SAABU Rate (USD)", "Local Agency Rate (USD)", "Unit Rate (USD)",
                     "Monthly Hours", "Annual Hours", "Workload 2025_Planned", "Workload 2025_Actual",
-                    "Remark", "Project", "Item", "Technical Unit", "Activities", "Booking Hours",
-                    "Booking Cost (Forecast)", "Booking Period", "Booking hours (Accepted by Project)",
-                    "Booking Period (Accepted by Project)", "Booking hours (Extra)",
+                    "Remark", "Project", "Item", "Technical Unit", "Activities", 
+                    "Booking Period From", "Booking Period To",
                     "Actual Hours", "Hourly Rate", "Total Cost", "Status",
                     "Booking Date", "Start Date", "End Date"
                 )
@@ -1174,13 +1172,12 @@ class ProjectBookingApp:
                         # Set column widths for complete view (with Select checkbox)
                         column_widths = {
                             "Select": 60, "ID": 50, "Cost Center": 100, "GHRS ID": 80, "Employee Name": 150,
-                            "Dept. Description": 150, "Work Location": 120, "Business Unit": 120, "Tipo": 80,
+                            "Department": 150, "Hub": 150, "Work Location": 120, "Business Unit": 120, "Tipo": 80,
                             "Tipo Description": 150, "SAP Tipo": 80, "SAABU Rate (EUR)": 100, "SAABU Rate (USD)": 100,
                             "Local Agency Rate (USD)": 120, "Unit Rate (USD)": 100, "Monthly Hours": 100, "Annual Hours": 100,
                             "Workload 2025_Planned": 120, "Workload 2025_Actual": 120, "Remark": 150, "Project": 150,
-                            "Item": 120, "Technical Unit": 120, "Activities": 150, "Booking Hours": 100,
-                            "Booking Cost (Forecast)": 120, "Booking Period": 120, "Booking hours (Accepted by Project)": 150,
-                            "Booking Period (Accepted by Project)": 150, "Booking hours (Extra)": 120,
+                            "Item": 120, "Technical Unit": 120, "Activities": 150, 
+                            "Booking Period From": 120, "Booking Period To": 120,
                             "Actual Hours": 80, "Hourly Rate": 80, "Total Cost": 100, "Status": 80,
                             "Booking Date": 100, "Start Date": 100, "End Date": 100
                         }
@@ -1189,7 +1186,7 @@ class ProjectBookingApp:
                             # Set basic column properties first
                             width = column_widths.get(col, 100)
                             anchor = 'w' if col in ["Employee Name", "Project", "Technical Unit", "Activities", 
-                                                  "Dept. Description", "Work Location", "Business Unit", 
+                                                  "Department", "Hub", "Work Location", "Business Unit", 
                                                   "Tipo Description", "Remark"] else 'center'
                             self.employee_tree.column(col, width=width, anchor=anchor, minwidth=70)
                             
@@ -1209,7 +1206,7 @@ class ProjectBookingApp:
                         if value is None:
                             display_value = "N/A"
                             formatted_row[col_name] = ""
-                        elif i in [10, 11, 12, 13, 16, 17, 23, 24, 25, 27, 28, 29, 30, 31]:  # Decimal/money columns (rates, hours, costs)
+                        elif i in [10, 11, 12, 13, 15, 16, 17, 18, 26, 27, 28, 29]:  # Decimal/money columns (rates, hours, costs)
                             try:
                                 display_value = f"{float(value):.2f}" if value else "0.00"
                                 formatted_row[col_name] = float(value) if value else 0.0
@@ -1223,7 +1220,7 @@ class ProjectBookingApp:
                             except (ValueError, TypeError):
                                 display_value = str(value) if value else "N/A"
                                 formatted_row[col_name] = str(value) if value else ""
-                        elif i in [32, 33, 34]:  # Date columns (booking_date, start_date, end_date)
+                        elif i in [24, 25, 30, 31, 32]:  # Date columns (booking_period_from, booking_period_to, booking_date, start_date, end_date)
                             display_value = str(value) if value else "N/A"
                             formatted_row[col_name] = str(value) if value else ""
                         else:
