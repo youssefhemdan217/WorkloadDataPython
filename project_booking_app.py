@@ -66,9 +66,9 @@ class ProjectBookingApp:
         self.search_var = None
         self.select_all_var = None
         
-        # Auto-refresh timer (refresh every 30 seconds)
-        self.auto_refresh_enabled = True
-        self.schedule_auto_refresh()
+        # Auto-refresh timer (refresh every 30 seconds) - DISABLED BY DEFAULT
+        self.auto_refresh_enabled = False  # FIXED: Disabled to prevent filter clearing
+        # self.schedule_auto_refresh()  # COMMENTED OUT - user can enable manually
         self.current_bookings = []
         
         # Main data DataFrame for filtering - like Fabsi app
@@ -1512,8 +1512,18 @@ class ProjectBookingApp:
             logging.error(f"Clear column filter error: {e}")
     
     def apply_all_filters(self):
-        """Apply all active filters to the DataFrame"""
+        """Apply all active filters to the DataFrame - PRESERVE SELECTIONS"""
         try:
+            # Store current selections BEFORE reloading data
+            current_selections = {}
+            for item in self.employee_tree.get_children():
+                values = self.employee_tree.item(item, 'values')
+                if values and len(values) > 1:
+                    row_id = values[1]  # ID is in second column
+                    is_selected = values[0] == "☑"
+                    if is_selected:
+                        current_selections[str(row_id)] = True
+            
             # Start with full dataset - reload from database
             self.load_employee_data_grid_for_filter()
             
@@ -1524,8 +1534,8 @@ class ProjectBookingApp:
                     values_str = [str(v) for v in values]
                     self.df = self.df[self.df[column].astype(str).isin(values_str)]
             
-            # Refresh the display
-            self.refresh_display()
+            # Refresh the display AND restore selections
+            self.refresh_display_with_selections(current_selections)
             
         except Exception as e:
             logging.error(f"Apply all filters error: {e}")
@@ -1558,6 +1568,53 @@ class ProjectBookingApp:
                 
         except Exception as e:
             logging.error(f"Refresh display error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def refresh_display_with_selections(self, preserved_selections):
+        """Refresh the tree display with current DataFrame data and restore selections"""
+        try:
+            # Clear existing items
+            for item in self.employee_tree.get_children():
+                self.employee_tree.delete(item)
+            
+            # Clear and rebuild selected_rows set
+            self.selected_rows.clear()
+            
+            # Populate with filtered data
+            for _, row in self.df.iterrows():
+                values = []
+                columns = list(self.employee_tree['columns'])
+                
+                for col in columns:
+                    if col in row:
+                        value = row[col]
+                        if col == "Select":
+                            # Check if this row was previously selected
+                            row_id = str(row.get('id', ''))
+                            if row_id in preserved_selections:
+                                values.append("☑")
+                            else:
+                                values.append("☐")
+                        else:
+                            # Handle None values
+                            if pd.isna(value):
+                                values.append("")
+                            else:
+                                values.append(str(value))
+                    else:
+                        values.append("")
+                
+                # Insert the row
+                item = self.employee_tree.insert("", "end", values=values)
+                
+                # Add to selected_rows if it was selected
+                row_id = str(row.get('id', ''))
+                if row_id in preserved_selections:
+                    self.selected_rows.add(item)
+                    
+        except Exception as e:
+            logging.error(f"Refresh display with selections error: {e}")
             import traceback
             traceback.print_exc()
     
@@ -2495,7 +2552,8 @@ Department: {emp_data[4] or 'N/A'}
         """Schedule automatic refresh of employee data grid"""
         if self.auto_refresh_enabled:
             try:
-                self.refresh_employee_data()
+                # FIXED: Use smart refresh that preserves filters and selections
+                self.smart_refresh_with_preservation()
                 # Schedule next refresh in 30 seconds (30000 milliseconds)
                 self.root.after(30000, self.schedule_auto_refresh)
             except Exception as e:
@@ -2504,14 +2562,51 @@ Department: {emp_data[4] or 'N/A'}
                 self.root.after(30000, self.schedule_auto_refresh)
     
     def refresh_employee_data(self):
-        """Refresh employee data grid and related displays"""
+        """Refresh employee data grid and related displays - PRESERVES FILTERS"""
         try:
-            self.load_employee_data_grid()
+            # FIXED: Use smart refresh instead of full reload
+            self.smart_refresh_with_preservation()
             # Also refresh service data if an employee is selected
             if self.selected_employee.get():
                 self.load_employee_services()
         except Exception as e:
             logging.error(f"Data refresh error: {e}")
+    
+    def smart_refresh_with_preservation(self):
+        """Smart refresh that preserves current filters and selections"""
+        try:
+            # Store current filter state
+            current_filters = self.active_column_filters.copy()
+            
+            # Store current selections
+            current_selections = {}
+            for item in self.employee_tree.get_children():
+                values = self.employee_tree.item(item, 'values')
+                if values and len(values) > 1:
+                    row_id = values[1]  # ID is in second column
+                    is_selected = values[0] == "☑"
+                    if is_selected:
+                        current_selections[str(row_id)] = True
+            
+            # Reload data from database
+            self.load_employee_data_grid_for_filter()
+            
+            # Reapply filters
+            self.active_column_filters = current_filters
+            for column, values in self.active_column_filters.items():
+                if column in self.df.columns:
+                    values_str = [str(v) for v in values]
+                    self.df = self.df[self.df[column].astype(str).isin(values_str)]
+            
+            # Refresh display with preserved selections
+            self.refresh_display_with_selections(current_selections)
+            
+            logging.info(f"Smart refresh completed - preserved {len(current_filters)} filters and {len(current_selections)} selections")
+            
+        except Exception as e:
+            logging.error(f"Smart refresh error: {e}")
+            # Fallback to regular refresh
+            self.load_employee_data_grid()
     
     def manual_refresh(self):
         """Manual refresh triggered by user action"""
@@ -2645,12 +2740,12 @@ Department: {emp_data[4] or 'N/A'}
             logging.error(f"Row selection toggle error: {e}")
     
     def select_all_rows(self):
-        """Select all rows in the employee tree"""
+        """Select all rows in the CURRENT FILTERED VIEW (not all data)"""
         try:
             # Clear current selection set
             self.selected_rows.clear()
             
-            # Iterate through all items in the tree
+            # Iterate through ONLY THE VISIBLE ITEMS in the tree (filtered data)
             for item in self.employee_tree.get_children():
                 current_values = list(self.employee_tree.item(item, 'values'))
                 if current_values:
@@ -2659,6 +2754,9 @@ Department: {emp_data[4] or 'N/A'}
                     self.employee_tree.item(item, values=current_values)
                     # Add to selected rows set
                     self.selected_rows.add(item)
+            
+            # DO NOT call apply_all_filters() here - this was causing the issue!
+            print(f"Selected {len(self.selected_rows)} rows from current filtered view")
                     
         except Exception as e:
             logging.error(f"Select all rows error: {e}")
