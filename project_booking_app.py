@@ -828,11 +828,10 @@ class ProjectBookingApp:
                         service_id = service[0]
                         estimated_internal = service[1] or 0
                         estimated_external = service[2] or 0
-                        # Use total estimated hours (internal + external)
-                        total_estimated = (estimated_internal or 0) + (estimated_external or 0)
                         start_date = service[3]
                         end_date = service[4]  # due_date
-                        service_notes = service[5]
+                        activities_id = service[5]
+                        title_id = service[6]
                         
                         # Check if this booking already exists
                         cursor.execute("""
@@ -916,32 +915,38 @@ class ProjectBookingApp:
                                 first_name = ""
                                 last_name = ""
                             
-                            # Insert comprehensive booking record with all 47 columns (excluding auto-increment id)
+                            # Insert comprehensive booking record with proper field mapping
                             cursor.execute("""
                                 INSERT INTO project_bookings 
-                                (employee_id, technical_unit_id, project_id, service_id, actual_hours, hourly_rate, total_cost, 
+                                (employee_id, technical_unit_id, project_id, service_id, 
                                  booking_status, booking_date, start_date, end_date,
-                                 created_by, approved_by, created_at, updated_at,
+                                 created_at, updated_at,
                                  cost_center, ghrs_id, last_name, first_name, dept_description,
                                  work_location, business_unit, tipo, tipo_description, sap_tipo,
                                  saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
                                  monthly_hours, annual_hours, workload_2025_planned, workload_2025_actual,
-                                 remark, project_name, item, technical_unit_name, activities_name,
-                                 booking_hours, booking_cost_forecast, booking_period,
-                                 booking_hours_accepted, booking_period_accepted, booking_hours_extra,
+                                 remark, project_name, technical_unit_name, activities_name,
+                                 booking_hours, booking_hours_accepted, booking_hours_extra,
                                  employee_name)
-                                VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, 'Pending', 
-                                        CURRENT_DATE, ?, ?, ?, NULL, NULL, 
+                                VALUES (?, ?, ?, ?, 
+                                        'Pending', CURRENT_DATE, ?, ?,
                                         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
-                                        ?, NULL, ?, ?, 0.00, 0.00, NULL, 0.00, NULL, 0.00, ?)
+                                        ?, ?, ?, ?, ?,
+                                        ?, ?, ?, ?, ?,
+                                        ?, ?, ?, ?,
+                                        ?, ?, ?, ?, ?,
+                                        ?, ?, ?,
+                                        ?, ?, ?,
+                                        ?)
                             """, (employee_id, tech_unit_id, project_id, service_id,
-                                  total_estimated, start_date, end_date, service_notes,
+                                  start_date, end_date,
                                   cost_center, ghrs_id, last_name, first_name, dept_description,
                                   work_location, business_unit, tipo, tipo_description, sap_tipo,
                                   saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
                                   monthly_hours, annual_hours, workload_2025_planned, workload_2025_actual,
-                                  remark, project_name_val, tu_name_val, activity_name_val, emp_name))
+                                  remark, project_name_val, tu_name_val, activity_name_val,
+                                  estimated_internal, estimated_internal, estimated_external,  # Map estimated hours correctly
+                                  emp_name))
                             bookings_added += 1
                     
                     conn.commit()
@@ -2180,7 +2185,7 @@ Department: {emp_data[4] or 'N/A'}
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT s.id, p.name, a.name, t.name 
+            SELECT s.id, p.name, a.name, t.name, s.estimated_internal_hours, s.estimated_external_hours
             FROM service s
             LEFT JOIN project p ON s.project_id = p.id
             LEFT JOIN activities a ON s.activities_id = a.id
@@ -2231,7 +2236,12 @@ Department: {emp_data[4] or 'N/A'}
                     messagebox.showwarning("Warning", "Please select a service")
                     return
                 
-                service_id = services[[s[1] + " - " + s[2] + " (" + s[3] + ")" for s in services].index(selected_service)][0]
+                # Get service details including estimated hours
+                service_index = [s[1] + " - " + s[2] + " (" + s[3] + ")" for s in services].index(selected_service)
+                service_data = services[service_index]
+                service_id = service_data[0]
+                estimated_internal_hours = service_data[4] or 0
+                estimated_external_hours = service_data[5] or 0
                 
                 # Get employee info from mapping
                 selected_emp = self.selected_employee.get()
@@ -2316,26 +2326,32 @@ Department: {emp_data[4] or 'N/A'}
                     
                     cursor.execute("""
                         INSERT INTO project_bookings 
-                        (employee_id, technical_unit_id, project_id, service_id, hourly_rate, total_cost, start_date, end_date,
-                         booking_status, booking_date, created_at, updated_at,
+                        (employee_id, technical_unit_id, project_id, service_id, 
+                         start_date, end_date, booking_status, booking_date, 
+                         created_at, updated_at,
                          cost_center, ghrs_id, employee_name, dept_description,
                          work_location, business_unit, tipo, tipo_description, sap_tipo,
                          saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
                          monthly_hours, annual_hours, workload_2025_planned, workload_2025_actual,
-                         remark, project_name, item, technical_unit_name, activities_name,
-                         booking_hours, booking_cost_forecast, booking_period,
-                         booking_hours_accepted, booking_period_accepted, booking_hours_extra)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending', CURRENT_DATE, 
+                         remark, project_name, technical_unit_name, activities_name,
+                         booking_hours, booking_hours_accepted, booking_hours_extra)
+                        VALUES (?, ?, ?, ?, 
+                                ?, ?, 'Pending', CURRENT_DATE, 
                                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
-                                ?, ?, ?, ?, ?, 0.00, 0.00, NULL, 0.00, NULL, 0.00)
-                    """, (employee_id, tech_unit_id, project_id, service_id, hours, rate, 
-                          total_cost, start_date_entry.get(), end_date_entry.get(),
+                                ?, ?, ?, ?,
+                                ?, ?, ?, ?, ?,
+                                ?, ?, ?, ?,
+                                ?, ?, ?, ?,
+                                ?, ?, ?, ?,
+                                ?, ?, ?)
+                    """, (employee_id, tech_unit_id, project_id, service_id, 
+                          start_date_entry.get(), end_date_entry.get(),
                           cost_center, ghrs_id, emp_name, dept_description,
                           work_location, business_unit, tipo, tipo_description, sap_tipo,
                           saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
                           monthly_hours, annual_hours, workload_2025_planned, workload_2025_actual,
-                          remark, project_name_val, tu_name_val, activity_name_val))
+                          remark, project_name_val, tu_name_val, activity_name_val,
+                          estimated_internal_hours, estimated_internal_hours, estimated_external_hours))
                 
                 conn.commit()
                 conn.close()
