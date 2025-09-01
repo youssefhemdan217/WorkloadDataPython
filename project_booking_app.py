@@ -171,14 +171,14 @@ class ProjectBookingApp:
         header_frame.pack(fill='x', padx=10, pady=(2, 3))
         header_frame.pack_propagate(False)
 
-        # Left logo (Saipem) - same size as Fabsi app
-        left_logo_frame = ctk.CTkFrame(header_frame, width=80, height=35, corner_radius=5)
+        # Left logo (Saipem) - increased width
+        left_logo_frame = ctk.CTkFrame(header_frame, width=120, height=35, corner_radius=5)
         left_logo_frame.pack(side='left', padx=5)
         left_logo_frame.pack_propagate(False)
         
         # Load Saipem logo
         saipem_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'saipem_logo.png')
-        saipem_logo_image = self.load_logo_image(saipem_logo_path, 75, 30)
+        saipem_logo_image = self.load_logo_image(saipem_logo_path, 115, 30)
         
         if saipem_logo_image:
             left_logo_label = ctk.CTkLabel(left_logo_frame, image=saipem_logo_image, text="")
@@ -198,14 +198,14 @@ class ProjectBookingApp:
         )
         title_label.pack(expand=True)
 
-        # Right logo (FABSI) - same as Fabsi app
-        right_logo_frame = ctk.CTkFrame(header_frame, width=60, height=35, corner_radius=5)
+        # Right logo (FABSI) - increased width
+        right_logo_frame = ctk.CTkFrame(header_frame, width=90, height=35, corner_radius=5)
         right_logo_frame.pack(side='right', padx=5)
         right_logo_frame.pack_propagate(False)
         
         # Load FABSI logo
         fabsi_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'fabsi_logo.png')
-        fabsi_logo_image = self.load_logo_image(fabsi_logo_path, 55, 30)
+        fabsi_logo_image = self.load_logo_image(fabsi_logo_path, 85, 30)
         
         if fabsi_logo_image:
             right_logo_label = ctk.CTkLabel(right_logo_frame, image=fabsi_logo_image, text="")
@@ -223,18 +223,9 @@ class ProjectBookingApp:
         selection_frame = ctk.CTkFrame(self.main_frame)
         selection_frame.pack(fill="x", padx=3, pady=(3, 5))  # Minimal padding
         
-        selection_label = ctk.CTkLabel(
-            selection_frame, 
-            text="Add Service Data",
-            font=ctk.CTkFont(size=14, weight="bold")  # Clear purpose
-        )
-        selection_label.pack(pady=(3, 2))  # Minimal padding
-        
-        # Dropdown container
+        # Button to add service data - moved below dropdown form
         dropdown_frame = ctk.CTkFrame(selection_frame)
-        dropdown_frame.pack(fill="x", padx=5, pady=2)  # Minimal padding
-        
-        # Technical Unit dropdown
+        dropdown_frame.pack(fill="x", padx=5, pady=2)  # Minimal padding        # Technical Unit dropdown
         tech_unit_frame = ctk.CTkFrame(dropdown_frame)
         tech_unit_frame.pack(side="left", fill="x", expand=True, padx=3)
         
@@ -272,6 +263,19 @@ class ProjectBookingApp:
             width=200
         )
         self.employee_dropdown.pack(pady=3, padx=3)
+        
+        # Add Service Data button - positioned below the dropdown form
+        add_service_button = ctk.CTkButton(
+            selection_frame, 
+            text="Add Service Data",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self.show_service_data_popup,
+            width=200,
+            height=35,
+            fg_color="#2b8a3e",
+            hover_color="#40c057"
+        )
+        add_service_button.pack(pady=(8, 3))
         
         # Action buttons under dropdowns
         button_frame = ctk.CTkFrame(selection_frame)
@@ -775,20 +779,17 @@ class ProjectBookingApp:
     
     def on_technical_unit_change(self, value):
         """Handle technical unit selection change"""
-        if value:
-            self.check_and_add_service_data()
+        pass  # Remove automatic service data addition
     
     def on_project_change(self, value):
         """Handle project selection change"""
-        if value:
-            self.check_and_add_service_data()
+        pass  # Remove automatic service data addition
     
     def on_employee_change(self, value):
         """Handle employee selection change"""
         if value:
             self.display_employee_details()  # Show employee details if panel exists
             self.load_employee_services()    # Load services for selected employee
-            self.check_and_add_service_data() # Check if all dropdowns are selected
     
     def check_and_add_service_data(self):
         """Check if all dropdowns are selected and filter service table to add to project_bookings table"""
@@ -978,7 +979,951 @@ class ProjectBookingApp:
             logging.error(f"Service data addition error: {e}")
             import traceback
             traceback.print_exc()
-    
+
+    def show_service_data_popup(self):
+        """Show popup window with editable table that previews data as it would appear in project_bookings"""
+        try:
+            tech_unit_name = self.selected_technical_unit.get()
+            project_name = self.selected_project.get()
+            employee_name = self.selected_employee.get()
+            
+            # Only proceed if all three have valid selections
+            if not (tech_unit_name and tech_unit_name in self.technical_unit_map and 
+                   project_name and project_name in self.project_map and 
+                   employee_name and employee_name in self.employee_map):
+                messagebox.showwarning("Selection Required", "Please select Technical Unit, Project, and Employee first.")
+                return
+                
+            # Get IDs from the mappings
+            tech_unit_id = self.technical_unit_map[tech_unit_name]
+            project_id = self.project_map[project_name]
+            employee_info = self.employee_map[employee_name]
+            employee_id = employee_info["id"]
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get service data for the selections
+            cursor.execute("""
+                SELECT s.id, s.estimated_internal_hours, s.estimated_external_hours, 
+                       s.start_date, s.due_date, a.name as activity_name
+                FROM service s 
+                LEFT JOIN activities a ON s.activities_id = a.id
+                WHERE s.technical_unit_id = ? AND s.project_id = ? AND s.employee_id = ?
+                ORDER BY s.id
+            """, (tech_unit_id, project_id, employee_id))
+            
+            service_data = cursor.fetchall()
+            
+            if not service_data:
+                conn.close()
+                messagebox.showinfo("No Data", "No service data found for the selected combination.")
+                return
+            
+            # Get employee data for the preview
+            cursor.execute("""
+                SELECT cost_center, ghrs_id, COALESCE(first_name || ' ' || last_name, last_name, first_name, 'N/A') as employee_name, 
+                       dept_description, work_location, business_unit, tipo, tipo_description, sap_tipo,
+                       saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
+                       monthly_hours, annual_hours, workload_2025_planned, workload_2025_actual, remark
+                FROM employee_extended WHERE id = ?
+            """, (employee_id,))
+            emp_data = cursor.fetchone()
+            
+            # Fallback: get employee name from main employee table if extended doesn't have it
+            if not emp_data or not emp_data[2]:
+                cursor.execute("SELECT name FROM employee WHERE id = ?", (employee_id,))
+                emp_name_fallback = cursor.fetchone()
+                emp_name = emp_name_fallback[0] if emp_name_fallback else "N/A"
+            else:
+                emp_name = emp_data[2]
+            
+            conn.close()
+            
+            # Create popup window
+            popup = ctk.CTkToplevel(self.root)
+            popup.title(f"Preview Service Data - {employee_name} | {project_name} | {tech_unit_name}")
+            popup.geometry("1400x700")
+            popup.transient(self.root)
+            popup.grab_set()
+            
+            # Center the popup
+            popup.update_idletasks()
+            x = (popup.winfo_screenwidth() // 2) - (1400 // 2)
+            y = (popup.winfo_screenheight() // 2) - (700 // 2)
+            popup.geometry(f"1400x700+{x}+{y}")
+            
+            # Create main frame
+            main_frame = ctk.CTkFrame(popup)
+            main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            # Title
+            title_label = ctk.CTkLabel(main_frame, text="Service Data Preview - Edit Before Adding", 
+                                     font=ctk.CTkFont(size=16, weight="bold"))
+            title_label.pack(pady=(0, 10))
+            
+            # Create frame for the treeview with scrollbars
+            tree_frame = ctk.CTkFrame(main_frame)
+            tree_frame.pack(fill="both", expand=True, pady=(0, 10))
+            
+            # Define columns matching the main project_bookings table view
+            columns = (
+                "Select", "ID", "Cost Center", "GHRS ID", "Employee Name", "Dept. Description",
+                "Work Location", "Business Unit", "Tipo", "Tipo Description", "SAP Tipo",
+                "SAABU Rate (EUR)", "SAABU Rate (USD)", "Local Agency Rate (USD)", "Unit Rate (USD)",
+                "Monthly Hours", "Annual Hours", "Workload 2025_Planned", "Workload 2025_Actual",
+                "Remark", "Project", "Item", "Technical Unit", "Activities", "Booking Hours",
+                "Booking Cost (Forecast)", "Booking Period", "Booking hours (Accepted by Project)",
+                "Booking Period (Accepted by Project)", "Booking hours (Extra)",
+                "Actual Hours", "Hourly Rate", "Total Cost", "Status",
+                "Booking Date", "Start Date", "End Date"
+            )
+            
+            # Create treeview
+            tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=15)
+            
+            # Configure columns with proper minimum widths for horizontal scrolling
+            for col in columns:
+                tree.heading(col, text=col)
+                if col == "Select":
+                    tree.column(col, width=60, minwidth=60, anchor="center")
+                elif col in ["ID"]:
+                    tree.column(col, width=80, minwidth=80, anchor="center")
+                elif col in ["Monthly Hours", "Annual Hours"]:
+                    tree.column(col, width=100, minwidth=100, anchor="center")
+                elif col in ["Cost Center", "GHRS ID", "Status", "Booking Date", "Start Date", "End Date"]:
+                    tree.column(col, width=110, minwidth=110, anchor="center")
+                elif col in ["Employee Name", "Project", "Technical Unit", "Activities"]:
+                    tree.column(col, width=180, minwidth=150, anchor="w")
+                elif col in ["Dept. Description", "Work Location", "Business Unit", "Remark"]:
+                    tree.column(col, width=140, minwidth=120, anchor="w")
+                elif col in ["Tipo Description", "Booking Period", "Booking hours (Accepted by Project)", "Booking Period (Accepted by Project)"]:
+                    tree.column(col, width=160, minwidth=140, anchor="center")
+                elif col in ["SAABU Rate (EUR)", "SAABU Rate (USD)", "Local Agency Rate (USD)", "Unit Rate (USD)", "Booking Cost (Forecast)"]:
+                    tree.column(col, width=130, minwidth=120, anchor="center")
+                else:
+                    tree.column(col, width=120, minwidth=100, anchor="center")
+            
+            # Prepare preview data that matches project_bookings structure
+            self.preview_data = []
+            for service in service_data:
+                service_id = service[0]
+                estimated_internal = service[1] or 0
+                estimated_external = service[2] or 0
+                start_date = service[3]
+                end_date = service[4]  # due_date
+                activity_name = service[5] if service[5] else "N/A"
+                
+                # Prepare values with defaults matching what would be inserted
+                if emp_data:
+                    (cost_center, ghrs_id, employee_name_from_query, dept_description,
+                     work_location, business_unit, tipo, tipo_description, sap_tipo,
+                     saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
+                     monthly_hours, annual_hours, workload_2025_planned, workload_2025_actual,
+                     remark) = emp_data
+                else:
+                    # Default values when employee_extended data not available
+                    (cost_center, ghrs_id, dept_description,
+                     work_location, business_unit, tipo, tipo_description, sap_tipo,
+                     saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
+                     monthly_hours, annual_hours, workload_2025_planned, workload_2025_actual,
+                     remark) = (None, None, None, None, None, None, None, None,
+                               0.00, 0.00, 0.00, 0.00, 0, 0, 0.00, 0.00, None)
+                
+                # Create row data matching project_bookings table structure
+                row_data = {
+                    "select": "☐",  # Unselected by default
+                    "service_id": service_id,
+                    "cost_center": cost_center if cost_center else "N/A",
+                    "ghrs_id": ghrs_id if ghrs_id else "N/A",
+                    "employee_name": emp_name,
+                    "dept_description": dept_description if dept_description else "N/A",
+                    "work_location": work_location if work_location else "N/A",
+                    "business_unit": business_unit if business_unit else "N/A",
+                    "tipo": tipo if tipo else "N/A",
+                    "tipo_description": tipo_description if tipo_description else "N/A",
+                    "sap_tipo": sap_tipo if sap_tipo else "N/A",
+                    "saabu_rate_eur": f"{saabu_rate_eur:.2f}" if saabu_rate_eur else "0.00",
+                    "saabu_rate_usd": f"{saabu_rate_usd:.2f}" if saabu_rate_usd else "0.00",
+                    "local_agency_rate_usd": f"{local_agency_rate_usd:.2f}" if local_agency_rate_usd else "0.00",
+                    "unit_rate_usd": f"{unit_rate_usd:.2f}" if unit_rate_usd else "0.00",
+                    "monthly_hours": str(monthly_hours) if monthly_hours else "0",
+                    "annual_hours": str(annual_hours) if annual_hours else "0",
+                    "workload_2025_planned": f"{workload_2025_planned:.2f}" if workload_2025_planned else "0.00",
+                    "workload_2025_actual": f"{workload_2025_actual:.2f}" if workload_2025_actual else "0.00",
+                    "remark": remark if remark else "N/A",
+                    "project_name": project_name,
+                    "item": "N/A",  # Default item
+                    "technical_unit_name": tech_unit_name,
+                    "activities_name": activity_name,
+                    "booking_hours": f"{estimated_internal:.2f}",
+                    "booking_cost_forecast": "0.00",
+                    "booking_period": "N/A",
+                    "booking_hours_accepted": f"{estimated_internal:.2f}",
+                    "booking_period_accepted": "N/A",
+                    "booking_hours_extra": f"{estimated_external:.2f}",
+                    "actual_hours": "0.00",
+                    "hourly_rate": "0.00",
+                    "total_cost": "0.00",
+                    "booking_status": "Pending",
+                    "booking_date": datetime.now().strftime("%Y-%m-%d"),
+                    "start_date": start_date if start_date else "N/A",
+                    "end_date": end_date if end_date else "N/A"
+                }
+                
+                self.preview_data.append(row_data)
+                
+                # Insert into tree
+                formatted_row = [
+                    row_data["select"], row_data["service_id"], row_data["cost_center"], row_data["ghrs_id"],
+                    row_data["employee_name"], row_data["dept_description"], row_data["work_location"],
+                    row_data["business_unit"], row_data["tipo"], row_data["tipo_description"], row_data["sap_tipo"],
+                    row_data["saabu_rate_eur"], row_data["saabu_rate_usd"], row_data["local_agency_rate_usd"],
+                    row_data["unit_rate_usd"], row_data["monthly_hours"], row_data["annual_hours"],
+                    row_data["workload_2025_planned"], row_data["workload_2025_actual"], row_data["remark"],
+                    row_data["project_name"], row_data["item"], row_data["technical_unit_name"],
+                    row_data["activities_name"], row_data["booking_hours"], row_data["booking_cost_forecast"],
+                    row_data["booking_period"], row_data["booking_hours_accepted"], row_data["booking_period_accepted"],
+                    row_data["booking_hours_extra"], row_data["actual_hours"], row_data["hourly_rate"],
+                    row_data["total_cost"], row_data["booking_status"], row_data["booking_date"],
+                    row_data["start_date"], row_data["end_date"]
+                ]
+                tree.insert("", "end", values=formatted_row)
+            
+            # Create scrollbars
+            h_scrollbar = ttk.Scrollbar(tree_frame, orient="horizontal", command=tree.xview)
+            v_scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
+            
+            # Configure tree scrolling
+            tree.configure(xscrollcommand=h_scrollbar.set, yscrollcommand=v_scrollbar.set)
+            
+            # Pack widgets in correct order
+            h_scrollbar.pack(side="bottom", fill="x")
+            v_scrollbar.pack(side="right", fill="y")
+            tree.pack(side="left", fill="both", expand=True)
+            
+            # Store tree reference for editing
+            self.popup_tree = tree
+            
+            # Bind double-click for editing
+            tree.bind('<Double-1>', self.on_popup_cell_edit)
+            
+            # Bind click for selection toggle
+            tree.bind('<Button-1>', self.on_popup_row_select)
+            
+            # Instructions label
+            instructions_label = ctk.CTkLabel(main_frame, 
+                                            text="💡 Tip: Use horizontal/vertical scrollbars to see all columns. Double-click cells to edit. Click checkbox to select/deselect rows.",
+                                            font=ctk.CTkFont(size=12), 
+                                            text_color="gray")
+            instructions_label.pack(pady=(5, 5))
+            
+            # Button frame
+            button_frame = ctk.CTkFrame(main_frame)
+            button_frame.pack(fill="x", pady=(5, 0))
+            
+            # Select/Deselect All buttons
+            ctk.CTkButton(button_frame, text="Select All", 
+                         command=lambda: self.popup_select_all(tree),
+                         width=100).pack(side="left", padx=(0, 5))
+            
+            ctk.CTkButton(button_frame, text="Deselect All", 
+                         command=lambda: self.popup_deselect_all(tree),
+                         width=100).pack(side="left", padx=(0, 10))
+            
+            # Delete Selected button
+            ctk.CTkButton(button_frame, text="Delete Selected", 
+                         command=lambda: self.popup_delete_selected(tree),
+                         width=120).pack(side="left", padx=(0, 20))
+            
+            # Close button
+            ctk.CTkButton(button_frame, text="Close", 
+                         command=popup.destroy,
+                         width=100).pack(side="right", padx=(10, 0))
+            
+            # Save All button (moved to bottom as requested)
+            ctk.CTkButton(button_frame, text="Save All to Project Bookings",
+                         command=lambda: self.save_popup_data(popup, tree, tech_unit_id, project_id, employee_id),
+                         width=200, height=35,
+                         fg_color="#28a745", hover_color="#218838").pack(side="right")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to show service data: {e}")
+            logging.error(f"Service data popup error: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def on_popup_cell_edit(self, event):
+        """Handle double-click editing in popup table"""
+        try:
+            # Get the clicked item and column
+            item = self.popup_tree.selection()[0] if self.popup_tree.selection() else None
+            if not item:
+                return
+                
+            column = self.popup_tree.identify_column(event.x)
+            col_idx = int(column.replace('#', '')) - 1
+            
+            # Skip checkbox and ID columns
+            if col_idx in [0, 1]:
+                return
+                
+            current_values = list(self.popup_tree.item(item, 'values'))
+            if col_idx >= len(current_values):
+                return
+                
+            # Define editable columns (same as main table)
+            columns = (
+                "Select", "ID", "Cost Center", "GHRS ID", "Employee Name", "Dept. Description",
+                "Work Location", "Business Unit", "Tipo", "Tipo Description", "SAP Tipo",
+                "SAABU Rate (EUR)", "SAABU Rate (USD)", "Local Agency Rate (USD)", "Unit Rate (USD)",
+                "Monthly Hours", "Annual Hours", "Workload 2025_Planned", "Workload 2025_Actual",
+                "Remark", "Project", "Item", "Technical Unit", "Activities", "Booking Hours",
+                "Booking Cost (Forecast)", "Booking Period", "Booking hours (Accepted by Project)",
+                "Booking Period (Accepted by Project)", "Booking hours (Extra)",
+                "Actual Hours", "Hourly Rate", "Total Cost", "Status",
+                "Booking Date", "Start Date", "End Date"
+            )
+            
+            # Map display columns to database column names
+            db_column_map = {
+                2: "cost_center", 3: "ghrs_id", 4: "employee_name", 5: "dept_description",
+                6: "work_location", 7: "business_unit", 8: "tipo", 9: "tipo_description", 10: "sap_tipo",
+                11: "saabu_rate_eur", 12: "saabu_rate_usd", 13: "local_agency_rate_usd", 14: "unit_rate_usd",
+                15: "monthly_hours", 16: "annual_hours", 17: "workload_2025_planned", 18: "workload_2025_actual",
+                19: "remark", 20: "project_name", 21: "item", 22: "technical_unit_name",
+                23: "activities_name", 24: "booking_hours", 25: "booking_cost_forecast", 26: "booking_period",
+                27: "booking_hours_accepted", 28: "booking_period_accepted", 29: "booking_hours_extra",
+                30: "actual_hours", 31: "hourly_rate", 32: "total_cost", 33: "booking_status",
+                34: "booking_date", 35: "start_date", 36: "end_date"
+            }
+            
+            db_column = db_column_map.get(col_idx)
+            if not db_column:
+                return
+                
+            column_name = columns[col_idx]
+            current_value = current_values[col_idx] if col_idx < len(current_values) else ""
+            
+            # Remove "N/A" for editing
+            if current_value == "N/A":
+                current_value = ""
+            
+            # Create inline editing dialog (reuse existing method)
+            self.create_popup_edit_dialog(item, col_idx, column_name, current_value, db_column)
+            
+        except Exception as e:
+            logging.error(f"Popup cell edit error: {e}")
+
+    def create_popup_edit_dialog(self, tree_item, col_idx, column_name, current_value, db_column):
+        """Create edit dialog for popup table cells"""
+        # Create compact edit dialog
+        edit_dialog = ctk.CTkToplevel(self.root)
+        edit_dialog.title(f"Edit {column_name}")
+        edit_dialog.geometry("400x200")
+        edit_dialog.transient(self.root)
+        edit_dialog.grab_set()
+        
+        # Center the dialog
+        edit_dialog.update_idletasks()
+        x = (edit_dialog.winfo_screenwidth() // 2) - (400 // 2)
+        y = (edit_dialog.winfo_screenheight() // 2) - (200 // 2)
+        edit_dialog.geometry(f"400x200+{x}+{y}")
+        
+        # Content frame
+        content_frame = ctk.CTkFrame(edit_dialog)
+        content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Label
+        ctk.CTkLabel(content_frame, text=f"Edit {column_name}:", 
+                    font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(0, 10))
+        
+        # Determine input type based on column (same logic as main table)
+        numeric_columns = ["saabu_rate_eur", "saabu_rate_usd", "local_agency_rate_usd", "unit_rate_usd",
+                          "workload_2025_planned", "workload_2025_actual", "booking_hours", 
+                          "booking_cost_forecast", "booking_hours_accepted", "booking_hours_extra",
+                          "actual_hours", "hourly_rate", "total_cost"]
+        
+        integer_columns = ["monthly_hours", "annual_hours"]
+        
+        date_columns = ["booking_date", "start_date", "end_date"]
+        
+        text_area_columns = ["remark", "dept_description", "tipo_description"]
+        
+        # Foreign key columns that should use dropdowns
+        fk_columns = {
+            "employee_name": "employee",
+            "project_name": "project", 
+            "technical_unit_name": "technical_unit",
+            "activities_name": "activities",
+            "booking_status": "status"
+        }
+        
+        if db_column in text_area_columns:
+            # Text area for longer text
+            edit_widget = ctk.CTkTextbox(content_frame, height=80, width=350)
+            edit_widget.pack(pady=5, fill="x")
+            if current_value and current_value != "N/A":
+                edit_widget.insert("1.0", current_value)
+        elif db_column in fk_columns:
+            # Dropdown for foreign key fields
+            try:
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                
+                # Get options based on the FK field
+                if fk_columns[db_column] == "employee":
+                    cursor.execute("SELECT name FROM employee ORDER BY name")
+                elif fk_columns[db_column] == "project":
+                    cursor.execute("SELECT name FROM project ORDER BY name")
+                elif fk_columns[db_column] == "technical_unit":
+                    cursor.execute("SELECT name FROM technical_unit ORDER BY name")
+                elif fk_columns[db_column] == "activities":
+                    cursor.execute("SELECT name FROM activities ORDER BY name")
+                elif fk_columns[db_column] == "status":
+                    # Status options
+                    options = ["Pending", "Approved", "Rejected", "In Progress", "Completed", "Cancelled"]
+                    edit_widget = ctk.CTkComboBox(content_frame, values=options, width=350)
+                    edit_widget.pack(pady=5, fill="x")
+                    if current_value and current_value != "N/A":
+                        edit_widget.set(current_value)
+                    conn.close()
+                    
+                if fk_columns[db_column] != "status":
+                    options = [row[0] for row in cursor.fetchall()]
+                    options.insert(0, "")  # Add empty option
+                    edit_widget = ctk.CTkComboBox(content_frame, values=options, width=350)
+                    edit_widget.pack(pady=5, fill="x")
+                    if current_value and current_value != "N/A":
+                        edit_widget.set(current_value)
+                    conn.close()
+                    
+            except Exception as e:
+                # Fallback to regular entry if FK lookup fails
+                edit_widget = ctk.CTkEntry(content_frame, width=350, placeholder_text=f"Enter {column_name.lower()}")
+                edit_widget.pack(pady=5, fill="x")
+                if current_value and current_value != "N/A":
+                    edit_widget.insert(0, current_value)
+        else:
+            # Single line entry
+            edit_widget = ctk.CTkEntry(content_frame, width=350, placeholder_text=f"Enter {column_name.lower()}")
+            edit_widget.pack(pady=5, fill="x")
+            if current_value and current_value != "N/A":
+                edit_widget.insert(0, current_value)
+        
+        # Validation info
+        if db_column in numeric_columns:
+            info_text = "Enter a decimal number (e.g., 123.45)"
+        elif db_column in integer_columns:
+            info_text = "Enter a whole number (e.g., 40)"
+        elif db_column in date_columns:
+            info_text = "Enter date in YYYY-MM-DD format (e.g., 2025-01-15)"
+        else:
+            info_text = "Enter text value"
+            
+        ctk.CTkLabel(content_frame, text=info_text, 
+                    font=ctk.CTkFont(size=10), text_color="gray").pack(pady=(0, 10))
+        
+        # Buttons
+        button_frame = ctk.CTkFrame(content_frame)
+        button_frame.pack(fill="x", pady=(10, 0))
+        
+        def save_change():
+            try:
+                # Get the new value
+                if db_column in text_area_columns:
+                    new_value = edit_widget.get("1.0", "end-1c").strip()
+                else:
+                    new_value = edit_widget.get().strip()
+                
+                # Update the popup tree display
+                current_values = list(self.popup_tree.item(tree_item, 'values'))
+                current_values[col_idx] = new_value if new_value else "N/A"
+                self.popup_tree.item(tree_item, values=current_values)
+                
+                # Update the preview data
+                item_index = self.popup_tree.index(tree_item)
+                if item_index < len(self.preview_data):
+                    # Map column index to preview data key
+                    data_keys = [
+                        "select", "service_id", "cost_center", "ghrs_id", "employee_name", "dept_description",
+                        "work_location", "business_unit", "tipo", "tipo_description", "sap_tipo",
+                        "saabu_rate_eur", "saabu_rate_usd", "local_agency_rate_usd", "unit_rate_usd",
+                        "monthly_hours", "annual_hours", "workload_2025_planned", "workload_2025_actual",
+                        "remark", "project_name", "item", "technical_unit_name", "activities_name",
+                        "booking_hours", "booking_cost_forecast", "booking_period", "booking_hours_accepted",
+                        "booking_period_accepted", "booking_hours_extra", "actual_hours", "hourly_rate",
+                        "total_cost", "booking_status", "booking_date", "start_date", "end_date"
+                    ]
+                    
+                    if col_idx < len(data_keys):
+                        key = data_keys[col_idx]
+                        self.preview_data[item_index][key] = new_value if new_value else "N/A"
+                
+                edit_dialog.destroy()
+                messagebox.showinfo("Success", f"{column_name} updated successfully!")
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to update {column_name}: {e}")
+        
+        def cancel_edit():
+            edit_dialog.destroy()
+        
+        # Buttons
+        ctk.CTkButton(button_frame, text="Save", command=save_change, width=100).pack(side="left", padx=(0, 10))
+        ctk.CTkButton(button_frame, text="Cancel", command=cancel_edit, width=100).pack(side="left")
+        
+        # Focus on the input widget
+        edit_widget.focus()
+        
+        # Bind Enter key to save
+        edit_dialog.bind('<Return>', lambda e: save_change())
+        edit_dialog.bind('<Escape>', lambda e: cancel_edit())
+
+    def on_popup_row_select(self, event):
+        """Handle row selection in popup table"""
+        try:
+            # Get the clicked column
+            column = self.popup_tree.identify_column(event.x)
+            
+            # Check if clicked on the Select column (first column)
+            if column == "#1":
+                item = self.popup_tree.identify_row(event.y)
+                if item:
+                    current_values = list(self.popup_tree.item(item, 'values'))
+                    if current_values:
+                        # Toggle selection
+                        current_values[0] = "☑" if current_values[0] == "☐" else "☐"
+                        self.popup_tree.item(item, values=current_values)
+                        
+                        # Update preview data
+                        item_index = self.popup_tree.index(item)
+                        if item_index < len(self.preview_data):
+                            self.preview_data[item_index]["select"] = current_values[0]
+                        
+        except Exception as e:
+            logging.error(f"Popup row selection error: {e}")
+
+    def popup_select_all(self, tree):
+        """Select all rows in popup"""
+        try:
+            for item in tree.get_children():
+                current_values = list(tree.item(item, 'values'))
+                if current_values:
+                    current_values[0] = "☑"
+                    tree.item(item, values=current_values)
+                    
+                    # Update preview data
+                    item_index = tree.index(item)
+                    if item_index < len(self.preview_data):
+                        self.preview_data[item_index]["select"] = "☑"
+        except Exception as e:
+            logging.error(f"Popup select all error: {e}")
+
+    def popup_deselect_all(self, tree):
+        """Deselect all rows in popup"""
+        try:
+            for item in tree.get_children():
+                current_values = list(tree.item(item, 'values'))
+                if current_values:
+                    current_values[0] = "☐"
+                    tree.item(item, values=current_values)
+                    
+                    # Update preview data
+                    item_index = tree.index(item)
+                    if item_index < len(self.preview_data):
+                        self.preview_data[item_index]["select"] = "☐"
+        except Exception as e:
+            logging.error(f"Popup deselect all error: {e}")
+
+    def popup_delete_selected(self, tree):
+        """Delete selected rows from popup"""
+        try:
+            items_to_delete = []
+            for item in tree.get_children():
+                current_values = list(tree.item(item, 'values'))
+                if current_values and current_values[0] == "☑":
+                    items_to_delete.append(item)
+            
+            if not items_to_delete:
+                messagebox.showwarning("No Selection", "No rows selected for deletion.")
+                return
+            
+            if messagebox.askyesno("Confirm", f"Delete {len(items_to_delete)} selected rows?"):
+                # Delete from tree (in reverse order to maintain indices)
+                for item in reversed(items_to_delete):
+                    item_index = tree.index(item)
+                    tree.delete(item)
+                    
+                    # Remove from preview data
+                    if item_index < len(self.preview_data):
+                        del self.preview_data[item_index]
+                
+                messagebox.showinfo("Success", f"Deleted {len(items_to_delete)} rows from preview.")
+        except Exception as e:
+            logging.error(f"Popup delete selected error: {e}")
+            messagebox.showerror("Error", f"Failed to delete rows: {e}")
+
+    def save_popup_data(self, popup, tree, tech_unit_id, project_id, employee_id):
+        """Save all remaining data to project_bookings table"""
+        try:
+            if not hasattr(self, 'preview_data') or not self.preview_data:
+                messagebox.showwarning("No Data", "No data to save.")
+                return
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            added_count = 0
+            for row_data in self.preview_data:
+                # Check if this booking already exists
+                service_id = row_data["service_id"]
+                cursor.execute("""
+                    SELECT id FROM project_bookings 
+                    WHERE employee_id = ? AND technical_unit_id = ? 
+                    AND project_id = ? AND service_id = ?
+                """, (employee_id, tech_unit_id, project_id, service_id))
+                
+                if not cursor.fetchone():
+                    # Insert into project_bookings (without activities_id as it doesn't exist)
+                    cursor.execute("""
+                        INSERT INTO project_bookings (
+                            employee_id, technical_unit_id, project_id, service_id, 
+                            booking_status, booking_date, start_date, end_date,
+                            created_at, updated_at,
+                            cost_center, ghrs_id, last_name, first_name, dept_description,
+                            work_location, business_unit, tipo, tipo_description, sap_tipo,
+                            saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
+                            monthly_hours, annual_hours, workload_2025_planned, workload_2025_actual,
+                            remark, project_name, item, technical_unit_name, activities_name,
+                            booking_hours, booking_cost_forecast, booking_period,
+                            booking_hours_accepted, booking_period_accepted, booking_hours_extra,
+                            actual_hours, hourly_rate, total_cost, employee_name
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        employee_id, tech_unit_id, project_id, service_id,
+                        row_data["booking_status"], row_data["booking_date"], 
+                        row_data["start_date"] if row_data["start_date"] != "N/A" else None,
+                        row_data["end_date"] if row_data["end_date"] != "N/A" else None,
+                        datetime.now(), datetime.now(),
+                        row_data["cost_center"] if row_data["cost_center"] != "N/A" else None,
+                        row_data["ghrs_id"] if row_data["ghrs_id"] != "N/A" else None,
+                        row_data["employee_name"].split()[-1] if row_data["employee_name"] != "N/A" else None,  # Last name
+                        " ".join(row_data["employee_name"].split()[:-1]) if row_data["employee_name"] != "N/A" else None,  # First name
+                        row_data["dept_description"] if row_data["dept_description"] != "N/A" else None,
+                        row_data["work_location"] if row_data["work_location"] != "N/A" else None,
+                        row_data["business_unit"] if row_data["business_unit"] != "N/A" else None,
+                        row_data["tipo"] if row_data["tipo"] != "N/A" else None,
+                        row_data["tipo_description"] if row_data["tipo_description"] != "N/A" else None,
+                        row_data["sap_tipo"] if row_data["sap_tipo"] != "N/A" else None,
+                        float(row_data["saabu_rate_eur"]), float(row_data["saabu_rate_usd"]),
+                        float(row_data["local_agency_rate_usd"]), float(row_data["unit_rate_usd"]),
+                        int(row_data["monthly_hours"]), int(row_data["annual_hours"]),
+                        float(row_data["workload_2025_planned"]), float(row_data["workload_2025_actual"]),
+                        row_data["remark"] if row_data["remark"] != "N/A" else None,
+                        row_data["project_name"], row_data["item"] if row_data["item"] != "N/A" else None,
+                        row_data["technical_unit_name"], row_data["activities_name"],
+                        float(row_data["booking_hours"]), float(row_data["booking_cost_forecast"]),
+                        row_data["booking_period"] if row_data["booking_period"] != "N/A" else None,
+                        float(row_data["booking_hours_accepted"]), 
+                        row_data["booking_period_accepted"] if row_data["booking_period_accepted"] != "N/A" else None,
+                        float(row_data["booking_hours_extra"]),
+                        float(row_data["actual_hours"]), float(row_data["hourly_rate"]), float(row_data["total_cost"]),
+                        row_data["employee_name"]
+                    ))
+                    added_count += 1
+            
+            conn.commit()
+            conn.close()
+            
+            if added_count > 0:
+                messagebox.showinfo("Success", f"Added {added_count} records to project bookings!")
+                self.load_employee_data_grid()  # Refresh the main grid
+                popup.destroy()
+            else:
+                messagebox.showwarning("No Records Added", "All records already exist in project bookings.")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save records: {e}")
+            logging.error(f"Save popup data error: {e}")
+            import traceback
+            traceback.print_exc()
+            current_value = current_values[col_idx] if col_idx < len(current_values) else ""
+            
+            # Create edit dialog for service data
+            self.create_service_edit_dialog(item, col_idx, column_name, current_value)
+            
+        except (IndexError, ValueError, KeyError):
+            pass
+
+    def create_service_edit_dialog(self, tree_item, col_idx, column_name, current_value):
+        """Create edit dialog for service data with FK dropdowns"""
+        # Create compact edit dialog
+        edit_dialog = ctk.CTkToplevel(self.popup)
+        edit_dialog.title(f"Edit {column_name}")
+        edit_dialog.geometry("400x250")
+        edit_dialog.transient(self.popup)
+        edit_dialog.grab_set()
+        
+        # Center the dialog
+        edit_dialog.update_idletasks()
+        x = (edit_dialog.winfo_screenwidth() // 2) - (400 // 2)
+        y = (edit_dialog.winfo_screenheight() // 2) - (250 // 2)
+        edit_dialog.geometry(f"400x250+{x}+{y}")
+        
+        # Content frame
+        content_frame = ctk.CTkFrame(edit_dialog)
+        content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Label
+        ctk.CTkLabel(content_frame, text=f"Edit {column_name}:", 
+                    font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(0, 10))
+        
+        # Determine input type based on column
+        numeric_columns = ["Internal Hours", "External Hours"]
+        date_columns = ["Start Date", "End Date"]
+        text_area_columns = ["Notes"]
+        fk_columns = ["Activity", "Title", "Status"]
+        
+        if column_name in text_area_columns:
+            # Text area for notes
+            edit_widget = ctk.CTkTextbox(content_frame, height=100, width=350)
+            edit_widget.pack(pady=5, fill="x")
+            if current_value and current_value != "N/A":
+                edit_widget.insert("1.0", current_value)
+                
+        elif column_name in fk_columns:
+            # Dropdown for FK fields
+            try:
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                
+                if column_name == "Activity":
+                    cursor.execute("SELECT name FROM activities ORDER BY name")
+                elif column_name == "Title":
+                    cursor.execute("SELECT name FROM title ORDER BY name")
+                elif column_name == "Status":
+                    options = ["Pending", "Approved", "Rejected", "In Progress", "Completed", "Cancelled"]
+                    edit_widget = ctk.CTkComboBox(content_frame, values=options, width=350)
+                    edit_widget.pack(pady=5, fill="x")
+                    if current_value and current_value != "N/A":
+                        edit_widget.set(current_value)
+                    conn.close()
+                    
+                if column_name != "Status":
+                    options = [row[0] for row in cursor.fetchall()]
+                    options.insert(0, "")  # Add empty option
+                    edit_widget = ctk.CTkComboBox(content_frame, values=options, width=350)
+                    edit_widget.pack(pady=5, fill="x")
+                    if current_value and current_value != "N/A":
+                        edit_widget.set(current_value)
+                    conn.close()
+                    
+            except Exception as e:
+                # Fallback to regular entry
+                edit_widget = ctk.CTkEntry(content_frame, width=350)
+                edit_widget.pack(pady=5, fill="x")
+                if current_value and current_value != "N/A":
+                    edit_widget.insert(0, current_value)
+        else:
+            # Regular entry for other fields
+            edit_widget = ctk.CTkEntry(content_frame, width=350)
+            edit_widget.pack(pady=5, fill="x")
+            if current_value and current_value != "N/A":
+                edit_widget.insert(0, current_value)
+        
+        # Validation info
+        if column_name in numeric_columns:
+            info_text = "Enter a number (e.g., 40, 120.5)"
+        elif column_name in date_columns:
+            info_text = "Enter date in YYYY-MM-DD format"
+        else:
+            info_text = "Enter value"
+            
+        ctk.CTkLabel(content_frame, text=info_text, 
+                    font=ctk.CTkFont(size=10), text_color="gray").pack(pady=(0, 10))
+        
+        # Buttons
+        button_frame = ctk.CTkFrame(content_frame)
+        button_frame.pack(fill="x", pady=(10, 0))
+        
+        def save_service_change():
+            try:
+                # Get the new value
+                if column_name in text_area_columns:
+                    new_value = edit_widget.get("1.0", "end-1c").strip()
+                else:
+                    new_value = edit_widget.get().strip()
+                
+                # Validate numeric inputs
+                if column_name in numeric_columns and new_value:
+                    try:
+                        float(new_value)
+                    except ValueError:
+                        messagebox.showerror("Invalid Input", "Please enter a valid number")
+                        return
+                
+                # Date validation
+                if column_name in date_columns and new_value:
+                    try:
+                        datetime.strptime(new_value, '%Y-%m-%d')
+                    except ValueError:
+                        messagebox.showerror("Invalid Date", "Please enter date in YYYY-MM-DD format")
+                        return
+                
+                # Update the tree item
+                current_values = list(self.service_tree.item(tree_item, 'values'))
+                current_values[col_idx] = new_value if new_value else "N/A"
+                self.service_tree.item(tree_item, values=current_values)
+                
+                edit_dialog.destroy()
+                messagebox.showinfo("Success", f"{column_name} updated successfully!")
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to update {column_name}: {e}")
+        
+        def cancel_service_edit():
+            edit_dialog.destroy()
+        
+        # Buttons
+        ctk.CTkButton(button_frame, text="Save", command=save_service_change, width=100).pack(side="left", padx=(0, 10))
+        ctk.CTkButton(button_frame, text="Cancel", command=cancel_service_edit, width=100).pack(side="left")
+        
+        # Focus on the input widget
+        edit_widget.focus()
+
+    def on_service_row_select(self, event):
+        """Handle row selection in service table"""
+        try:
+            region = self.service_tree.identify_region(event.x, event.y)
+            if region != "cell":
+                return
+                
+            item = self.service_tree.identify_row(event.y)
+            column = self.service_tree.identify_column(event.x)
+            
+            # Check if clicked on the Select column (first column)
+            if column == "#1" and item:
+                current_values = list(self.service_tree.item(item, 'values'))
+                if current_values[0] == "☐":
+                    current_values[0] = "☑"
+                    self.selected_service_rows.add(item)
+                else:
+                    current_values[0] = "☐"
+                    self.selected_service_rows.discard(item)
+                
+                self.service_tree.item(item, values=current_values)
+                        
+        except Exception as e:
+            logging.error(f"Service row selection error: {e}")
+
+    def select_all_service_rows(self):
+        """Select all rows in service table"""
+        try:
+            self.selected_service_rows.clear()
+            for item in self.service_tree.get_children():
+                current_values = list(self.service_tree.item(item, 'values'))
+                current_values[0] = "☑"
+                self.service_tree.item(item, values=current_values)
+                self.selected_service_rows.add(item)
+        except Exception as e:
+            logging.error(f"Select all service rows error: {e}")
+
+    def deselect_all_service_rows(self):
+        """Deselect all rows in service table"""
+        try:
+            for item in self.service_tree.get_children():
+                current_values = list(self.service_tree.item(item, 'values'))
+                current_values[0] = "☐"
+                self.service_tree.item(item, values=current_values)
+            self.selected_service_rows.clear()
+        except Exception as e:
+            logging.error(f"Deselect all service rows error: {e}")
+
+    def delete_selected_service_rows(self):
+        """Delete selected rows from service table"""
+        try:
+            if not self.selected_service_rows:
+                messagebox.showwarning("No Selection", "Please select rows to delete.")
+                return
+            
+            if messagebox.askyesno("Confirm Deletion", f"Delete {len(self.selected_service_rows)} selected rows?"):
+                # Remove from tree
+                for item in list(self.selected_service_rows):
+                    self.service_tree.delete(item)
+                    if item in self.service_data_map:
+                        del self.service_data_map[item]
+                
+                self.selected_service_rows.clear()
+                messagebox.showinfo("Success", "Selected rows deleted.")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to delete rows: {e}")
+
+    def add_service_from_popup(self, tech_unit_id, project_id, employee_id):
+        """Add remaining (non-deleted) records from popup to project_bookings"""
+        try:
+            remaining_items = list(self.service_tree.get_children())
+            if not remaining_items:
+                messagebox.showwarning("No Data", "No records remaining to add.")
+                return
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            added_count = 0
+            for item in remaining_items:
+                values = self.service_tree.item(item)['values']
+                service_data = self.service_data_map.get(item)
+                if not service_data:
+                    continue
+                    
+                service_id = service_data['service_id']
+                
+                # Check if this booking already exists
+                cursor.execute("""
+                    SELECT id FROM project_bookings 
+                    WHERE employee_id = ? AND technical_unit_id = ? 
+                    AND project_id = ? AND service_id = ?
+                """, (employee_id, tech_unit_id, project_id, service_id))
+                
+                if not cursor.fetchone():
+                    # Get updated values from the tree (after editing)
+                    internal_hours = float(values[2]) if values[2] and values[2] != "N/A" else 0
+                    external_hours = float(values[3]) if values[3] and values[3] != "N/A" else 0
+                    start_date = values[4] if values[4] != "N/A" else None
+                    end_date = values[5] if values[5] != "N/A" else None
+                    notes = values[6] if values[6] else ""
+                    status = values[9] if values[9] != "N/A" else "Pending"
+                    
+                    # Insert into project_bookings with edited values
+                    cursor.execute("""
+                        INSERT INTO project_bookings (
+                            employee_id, technical_unit_id, project_id, service_id,
+                            booking_hours, booking_hours_extra, booking_date, 
+                            start_date, end_date, activities_id, booking_status,
+                            notes, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, date('now'), ?, ?, ?, ?, ?, 
+                                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """, (employee_id, tech_unit_id, project_id, service_id,
+                         internal_hours, external_hours, start_date, end_date, 
+                         service_data.get('activities_id'), status, notes))
+                    added_count += 1
+            
+            conn.commit()
+            conn.close()
+            
+            if added_count > 0:
+                messagebox.showinfo("Success", f"Added {added_count} records to project bookings!")
+                self.load_employee_data_grid()  # Refresh the main grid
+                self.popup.destroy()
+            else:
+                messagebox.showwarning("No Records Added", "All records already exist in project bookings.")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to add records: {e}")
+            logging.error(f"Add from popup error: {e}")
+
     def display_employee_details(self):
         """Display selected employee details from unified employee table"""
         selected = self.selected_employee.get()
@@ -1877,12 +2822,60 @@ class ProjectBookingApp:
         
         text_area_columns = ["remark", "dept_description", "tipo_description"]
         
+        # Foreign key columns that should use dropdowns
+        fk_columns = {
+            "employee_name": "employee",
+            "project_name": "project", 
+            "technical_unit_name": "technical_unit",
+            "activities_name": "activities",
+            "booking_status": "status"
+        }
+        
         if db_column in text_area_columns:
             # Text area for longer text
             edit_widget = ctk.CTkTextbox(content_frame, height=80, width=350)
             edit_widget.pack(pady=5, fill="x")
             if current_value and current_value != "N/A":
                 edit_widget.insert("1.0", current_value)
+        elif db_column in fk_columns:
+            # Dropdown for foreign key fields
+            try:
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                
+                # Get options based on the FK field
+                if fk_columns[db_column] == "employee":
+                    cursor.execute("SELECT name FROM employee ORDER BY name")
+                elif fk_columns[db_column] == "project":
+                    cursor.execute("SELECT name FROM project ORDER BY name")
+                elif fk_columns[db_column] == "technical_unit":
+                    cursor.execute("SELECT name FROM technical_unit ORDER BY name")
+                elif fk_columns[db_column] == "activities":
+                    cursor.execute("SELECT name FROM activities ORDER BY name")
+                elif fk_columns[db_column] == "status":
+                    # Status options
+                    options = ["Pending", "Approved", "Rejected", "In Progress", "Completed", "Cancelled"]
+                    edit_widget = ctk.CTkComboBox(content_frame, values=options, width=350)
+                    edit_widget.pack(pady=5, fill="x")
+                    if current_value and current_value != "N/A":
+                        edit_widget.set(current_value)
+                    conn.close()
+                    
+                if fk_columns[db_column] != "status":
+                    options = [row[0] for row in cursor.fetchall()]
+                    options.insert(0, "")  # Add empty option
+                    edit_widget = ctk.CTkComboBox(content_frame, values=options, width=350)
+                    edit_widget.pack(pady=5, fill="x")
+                    if current_value and current_value != "N/A":
+                        edit_widget.set(current_value)
+                    conn.close()
+                    
+            except Exception as e:
+                # Fallback to regular entry if FK lookup fails
+                edit_widget = ctk.CTkEntry(content_frame, width=350, placeholder_text=f"Enter {column_name.lower()}")
+                edit_widget.pack(pady=5, fill="x")
+                if current_value and current_value != "N/A":
+                    edit_widget.insert(0, current_value)
         else:
             # Single line entry
             edit_widget = ctk.CTkEntry(content_frame, width=350, placeholder_text=f"Enter {column_name.lower()}")
@@ -1996,7 +2989,9 @@ class ProjectBookingApp:
         
         # Focus on the input widget and select all text
         edit_widget.focus()
-        if not db_column in text_area_columns and current_value and current_value != "N/A":
+        # Only select text for Entry widgets, not ComboBox or TextBox
+        if (hasattr(edit_widget, 'select_range') and 
+            not db_column in text_area_columns and current_value and current_value != "N/A"):
             edit_widget.select_range(0, tk.END)
         
         # Bind Enter key to save

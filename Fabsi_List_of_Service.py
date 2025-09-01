@@ -437,13 +437,13 @@ class ExcelActivityApp:
         header_frame.pack_propagate(False)
 
         # Left logo (Saipem) - increased size for better visibility
-        left_logo_frame = ctk.CTkFrame(header_frame, width=80, height=35, corner_radius=5)
+        left_logo_frame = ctk.CTkFrame(header_frame, width=120, height=35, corner_radius=5)
         left_logo_frame.pack(side='left', padx=5)
         left_logo_frame.pack_propagate(False)
         
         # Load Saipem logo
         saipem_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'saipem_logo.png')
-        saipem_logo_image = self.load_logo_image(saipem_logo_path, 75, 30)
+        saipem_logo_image = self.load_logo_image(saipem_logo_path, 115, 30)
         
         if saipem_logo_image:
             left_logo_label = ctk.CTkLabel(left_logo_frame, image=saipem_logo_image, text="")
@@ -462,14 +462,14 @@ class ExcelActivityApp:
         )
         title_label.pack(expand=True)
 
-        # Right logo (FABSI) - much smaller size
-        right_logo_frame = ctk.CTkFrame(header_frame, width=60, height=35, corner_radius=5)
+        # Right logo (FABSI) - increased width
+        right_logo_frame = ctk.CTkFrame(header_frame, width=90, height=35, corner_radius=5)
         right_logo_frame.pack(side='right', padx=5)
         right_logo_frame.pack_propagate(False)
         
         # Load FABSI logo
         fabsi_logo_path = os.path.join(os.path.dirname(__file__), 'photos', 'fabsi_logo.png')
-        fabsi_logo_image = self.load_logo_image(fabsi_logo_path, 55, 30)
+        fabsi_logo_image = self.load_logo_image(fabsi_logo_path, 85, 30)
         
         if fabsi_logo_image:
             right_logo_label = ctk.CTkLabel(right_logo_frame, image=fabsi_logo_image, text="")
