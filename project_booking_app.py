@@ -1585,12 +1585,13 @@ class ProjectBookingApp:
                 """, (employee_id, tech_unit_id, project_id, service_id))
                 
                 if not cursor.fetchone():
-                    # Insert into project_bookings (without activities_id as it doesn't exist)
+                    # Insert into project_bookings with 49 columns (excluding auto-increment id)
                     cursor.execute("""
                         INSERT INTO project_bookings (
                             employee_id, technical_unit_id, project_id, service_id, 
+                            actual_hours, hourly_rate, total_cost,
                             booking_status, booking_date, start_date, end_date,
-                            created_at, updated_at,
+                            created_by, approved_by, created_at, updated_at,
                             cost_center, ghrs_id, last_name, first_name, dept_description,
                             work_location, business_unit, tipo, tipo_description, sap_tipo,
                             saabu_rate_eur, saabu_rate_usd, local_agency_rate_usd, unit_rate_usd,
@@ -1598,13 +1599,16 @@ class ProjectBookingApp:
                             remark, project_name, item, technical_unit_name, activities_name,
                             booking_hours, booking_cost_forecast, booking_period,
                             booking_hours_accepted, booking_period_accepted, booking_hours_extra,
-                            actual_hours, hourly_rate, total_cost, employee_name
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            employee_name, hub_id, department_id, booking_period_from, booking_period_to
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         employee_id, tech_unit_id, project_id, service_id,
+                        float(row_data["actual_hours"]), float(row_data["hourly_rate"]), float(row_data["total_cost"]),
                         row_data["booking_status"], row_data["booking_date"], 
                         row_data["start_date"] if row_data["start_date"] != "N/A" else None,
                         row_data["end_date"] if row_data["end_date"] != "N/A" else None,
+                        None,  # created_by
+                        None,  # approved_by
                         datetime.now(), datetime.now(),
                         row_data["cost_center"] if row_data["cost_center"] != "N/A" else None,
                         row_data["ghrs_id"] if row_data["ghrs_id"] != "N/A" else None,
@@ -1628,8 +1632,11 @@ class ProjectBookingApp:
                         float(row_data["booking_hours_accepted"]), 
                         row_data["booking_period_accepted"] if row_data["booking_period_accepted"] != "N/A" else None,
                         float(row_data["booking_hours_extra"]),
-                        float(row_data["actual_hours"]), float(row_data["hourly_rate"]), float(row_data["total_cost"]),
-                        row_data["employee_name"]
+                        row_data["employee_name"],
+                        None,  # hub_id
+                        None,  # department_id
+                        row_data["start_date"] if row_data["start_date"] != "N/A" else None,  # booking_period_from
+                        row_data["end_date"] if row_data["end_date"] != "N/A" else None  # booking_period_to
                     ))
                     added_count += 1
             
