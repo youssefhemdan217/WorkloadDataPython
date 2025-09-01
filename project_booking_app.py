@@ -2964,7 +2964,7 @@ class ProjectBookingApp:
                 conn.close()
                 
                 # Update the stored row values
-                current_row_values[col_idx] = new_value if new_value is not None else "N/A"
+                current_rtestow_values[col_idx] = new_value if new_value is not None else "N/A"
                 
                 # Format display value
                 if db_column in numeric_columns and new_value:
